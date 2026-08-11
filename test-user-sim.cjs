@@ -221,7 +221,7 @@ function parseListItems(md) {
   const items = [];
   const stack = [];
   md.split("\n").forEach((line, i) => {
-    const m = line.match(/^(\s*)-\s+\[([ xX])\]\s+(.*)$/);
+    const m = line.match(/^(\s*)-\s*\[([ xX])\]\s*(.*)$/);
     if (!m) return;
     const indent = m[1].length;
     while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
@@ -515,17 +515,15 @@ async function main() {
   check("frontmatter week 渲染格式", /week: \d{4}-W\d{2}/.test(newDaily));
   check("mood 渲染（选择器第一个选项 😄）", newDaily.includes("mood: 😄"));
   check("无占位符残留", !newDaily.includes("{{"), newDaily.slice(0, 120));
-  check("今日事含 3 个 #今天 任务", (newDaily.match(/#今天/g) ?? []).length === 3);
-  check("明天区块含 2 个 #明天", (newDaily.match(/#明天/g) ?? []).length === 2);
-  check("本周区块含 1 个 #本周", (newDaily.match(/#本周/g) ?? []).length === 1);
-  check("以后区块含 1 个 #以后", (newDaily.match(/#以后/g) ?? []).length === 1);
+  check("模板无任何列标签（无需手动打 #）", !newDaily.includes("#今天") && !newDaily.includes("#明天") && !newDaily.includes("#本周") && !newDaily.includes("#以后"));
+  check("模板含分区区块（## ⏭ 明天 / 🗓 本周 / 🗂 以后）", newDaily.includes("## ⏭ 明天") && newDaily.includes("## 🗓 本周") && newDaily.includes("## 🗂 以后"));
   check("内嵌看板代码块在文件末尾（复盘之后）", newDaily.indexOf("```journal-board") > newDaily.indexOf("## 🌙 晚间复盘"));
   check("{{cursor}} 已移除", !newDaily.includes("{{cursor}}"));
   check("互链渲染 [[prev]] [[next]]", /<< \[\[2026-08-10\]\] \| \[\[2026-08-12\]\] >>/.test(newDaily));
   check("创建后打开文件", openedFiles.some((f) => f.path === "日记/每日/2026-08-11.md"));
   const cursorLine = cursorPos ? cursorPos[0] : -1;
   const cursorLineText = newDaily.split("\n")[cursorLine] ?? "";
-  check("光标定位到首个任务内容处", /^- \[ \]  #今天$/.test(cursorLineText), `line ${cursorLine}: "${cursorLineText}"`);
+  check("光标定位到首个任务内容处（col 6）", cursorPos?.[1] === 6 && /^-\s*\[ \]/.test(cursorLineText), `line ${cursorLine} col ${cursorPos?.[1]}: "${cursorLineText}"`);
 
   console.log("══ 测试 10：新建周记（自主渲染） ══");
   fs.mkdirSync(path.join(TEST_ROOT, "日记/每周"), { recursive: true });
@@ -542,7 +540,7 @@ async function main() {
   check("周记无占位符残留", !newWeekly.includes("{{"));
 
   console.log("══ 测试 12：日记内嵌看板（journal-board 代码块） ══");
-  // 使用测试 11 创建的日记（含 3 个 #今天 任务）
+  // 使用测试 11 创建的日记（无标签任务，靠区块归属分列）
   const boardEl = document.createElement("div");
   try {
     await blockHandlers["journal-board"]("", boardEl, { sourcePath: "日记/每日/2026-08-11.md" });
@@ -559,19 +557,17 @@ async function main() {
   const dbTomorrow = dbCols.find((c) => (c.querySelector(".jd-db-col-title")?.textContent ?? "").startsWith("明天"));
   check("明天列 2 个任务", (dbTomorrow?.querySelectorAll(".jd-db-item").length ?? 0) === 2);
   check("列标题显示完成度（今天 3/3）", /今天 \(\d+\/\d+\)/.test(dbToday?.querySelector(".jd-db-col-title")?.textContent ?? ""), dbToday?.querySelector(".jd-db-col-title")?.textContent);
-  // 勾选写回
+  // 勾选写回（空任务行，勾选后 - [ ] → - [x]）
   const dbBox = dbToday.querySelector(".jd-db-check");
-  const dbItemText = (dbToday.querySelector(".jd-db-item")?.textContent ?? "").replace(/^[☐☑]\s*/, "");
   dbBox.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
   await new Promise((r) => setTimeout(r, 50));
-  const afterCheck = readFile("日记/每日/2026-08-11.md");
-  const checkedLine = afterCheck.split("\n").find((l) => l.includes(dbItemText));
-  check("内嵌看板勾选写回日记", /^- \[x\]/.test(checkedLine ?? ""), checkedLine);
-  // 再点恢复
-  const dbBox2 = boardEl.querySelector(".jd-db-item.done .jd-db-check") ?? dbToday.querySelector(".jd-db-check");
-  dbBox2.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
+  check("内嵌看板勾选写回日记（出现 - [x]）", /- \[x\]/.test(readFile("日记/每日/2026-08-11.md")));
+  // 再点恢复（看板已重渲染，已完成列的 ☑ 恢复）
+  const dbBox2 = boardEl.querySelector(".jd-db-item.done .jd-db-check");
+  check("勾选后任务进入已完成列", !!dbBox2);
+  dbBox2?.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
   await new Promise((r) => setTimeout(r, 50));
-  check("再点恢复未完成", /^- \[ \]/.test(readFile("日记/每日/2026-08-11.md").split("\n").find((l) => l.includes(dbItemText)) ?? ""));
+  check("再点恢复未完成（无 - [x]）", !readFile("日记/每日/2026-08-11.md").includes("- [x]"));
 
   console.log("══ 测试 13：内嵌看板拖拽（换列 + 拖到已完成自动勾选） ══");
   // 重新渲染获取最新 DOM（勾选/恢复后 boardEl 已重渲染）
@@ -582,9 +578,9 @@ async function main() {
   const dbToday2 = dbCols2.find((c) => (c.querySelector(".jd-db-col-title")?.textContent ?? "").startsWith("今天"));
   const dbTomorrow2 = dbCols2.find((c) => (c.querySelector(".jd-db-col-title")?.textContent ?? "").startsWith("明天"));
   const dbDone2 = dbCols2.find((c) => (c.querySelector(".jd-db-col-title")?.textContent ?? "").includes("已完成"));
-  // 找第一个今天任务的行号（文件里第一个 "- [ ] " 任务行）
+  // 找第一个未完成任务的行号（文件里第一个 "- [ ]" 任务行）
   const f11now = readFile("日记/每日/2026-08-11.md").split("\n");
-  const dragLine = f11now.findIndex((l) => /^- \[ \]/.test(l) && l.includes("#今天"));
+  const dragLine = f11now.findIndex((l) => /^-\s*\[ \]/.test(l));
   check("找到可拖拽任务行", dragLine !== -1, `line ${dragLine}`);
   // 拖拽：今天 → 明天列（替换标签）
   const dragEvt13 = new dom.window.Event("dragstart", { bubbles: true, cancelable: true });

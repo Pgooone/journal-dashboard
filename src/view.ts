@@ -1,6 +1,7 @@
 import { ItemView, Notice, WorkspaceLeaf, TFile } from "obsidian";
 import type JournalDashboardPlugin from "./main";
-import { escapeRe, extractTags, replaceColumnTag } from "./settings";
+import { escapeRe, replaceColumnTag } from "./settings";
+import { parseTasks } from "./parse";
 
 // 注意：不能与旧插件 my-template-library 的 viewType 相同，
 // Obsidian 对重复注册直接抛错导致插件加载失败
@@ -34,6 +35,7 @@ interface BoardTask {
   text: string; // 任务行完整文本（含标签）
   tags: string[]; // 从行文本解析出的标签（含 #）
   done: boolean;
+  section: string; // 所在区块标题（无标签任务的区块归属用）
 }
 
 /** 来源日期友好显示：今天/昨天/前天/MM-DD */
@@ -270,7 +272,7 @@ export class DashboardView extends ItemView {
 
   // ================= 看板区块 =================
 
-  /** 收集看板任务：日记文件夹下所有日记的根任务（嵌套子任务不单独成卡） */
+  /** 收集看板任务：日记文件夹下所有日记的根任务（直接解析文件，不依赖 metadataCache） */
   private async collectBoardTasks(): Promise<BoardTask[]> {
     const tasks: BoardTask[] = [];
     const folder = this.plugin.settings.dailyFolder;
@@ -279,27 +281,27 @@ export class DashboardView extends ItemView {
       .getMarkdownFiles()
       .filter((f) => f.path.startsWith(folder + "/") && f.path !== boardFile);
     for (const file of files) {
-      const cache = this.app.metadataCache.getFileCache(file);
-      const items = (cache?.listItems ?? []).filter(
-        (i) => typeof i.task === "string" && (i.parent ?? -1) === -1
-      );
-      if (items.length === 0) continue;
-      const lines = (await this.app.vault.cachedRead(file)).split("\n");
-      for (const item of items) {
-        const text = lines[item.position.start.line] ?? "";
+      const content = await this.app.vault.cachedRead(file);
+      for (const t of parseTasks(content)) {
+        if (!t.root) continue;
         tasks.push({
           file,
-          line: item.position.start.line,
-          text,
-          tags: extractTags(text),
-          done: /^[xX]$/.test(item.task ?? ""),
+          line: t.line,
+          text: t.text,
+          tags: t.tags,
+          done: t.done,
+          section: t.section,
         });
       }
     }
     return tasks;
   }
 
-  /** 任务归列：已完成也计算归属列（用于列完成度统计）；按列数组顺序匹配标签；无标签 → 默认列 */
+  /**
+   * 任务归列：标签优先；无标签时按所在区块标题归属
+   * （标题包含列名 → 该列，如「## ⏭ 明天」→ 明天列）；否则默认列。
+   * 已完成也计算归属列（用于列完成度统计）。
+   */
   private classifyTask(t: BoardTask): { column: BoardColumn; done: boolean } {
     const all = t.tags.map((x) => x.toLowerCase());
     for (const col of this.cols) {
@@ -308,6 +310,11 @@ export class DashboardView extends ItemView {
       }
     }
     const def = this.cols.find((c) => c.key === this.defaultColKey) ?? this.cols[0];
+    for (const col of this.cols) {
+      if (col.key !== def.key && t.section.includes(col.label)) {
+        return { column: col, done: t.done };
+      }
+    }
     return { column: def, done: t.done };
   }
 
@@ -449,9 +456,11 @@ export class DashboardView extends ItemView {
       if (!(file instanceof TFile)) return;
       const line = parseInt(lineStr, 10);
       if (Number.isNaN(line)) return;
-      void this.modifyTaskLine({ file, line, text: "", tags: [], done: false }, (l) =>
-        // 移除全部列标签后追加目标标签，避免多标签并存导致拖拽无效
-        replaceColumnTag(l, this.plugin.settings.columns, column.tag)
+      void this.modifyTaskLine(
+        { file, line, text: "", tags: [], done: false, section: "" },
+        (l) =>
+          // 移除全部列标签后追加目标标签，避免多标签并存导致拖拽无效
+          replaceColumnTag(l, this.plugin.settings.columns, column.tag)
       );
     });
   }

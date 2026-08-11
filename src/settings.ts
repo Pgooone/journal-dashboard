@@ -75,6 +75,7 @@ export function extractTags(text: string): string[] {
 /**
  * 拖拽换列写回：先移除任务行中的全部列标签（含目标列），
  * 再追加目标列标签。避免出现 #今天 #明天 并存导致拖拽无效。
+ * tag 为空（如今天列无标签）时只清理不追加，任务靠区块/默认列归属。
  */
 export function replaceColumnTag(
   line: string,
@@ -86,13 +87,17 @@ export function replaceColumnTag(
     .map((t) => escapeRe(t.slice(1)))
     .filter(Boolean)
     .sort((a, b) => b.length - a.length);
-  if (allTags.length === 0) return `${line} ${tag}`;
-  const stripRe = new RegExp(
-    `[ \\t]*#(?:${allTags.join("|")})(?![\\p{L}\\p{N}_/\\-])`,
-    "g"
-  );
-  const cleaned = line.replace(stripRe, "").trimEnd();
-  return `${cleaned} ${tag}`;
+  const cleaned = allTags.length
+    ? line.replace(stripRe(), "").trimEnd()
+    : line.trimEnd();
+  return tag ? `${cleaned} ${tag}` : cleaned;
+
+  function stripRe(): RegExp {
+    return new RegExp(
+      `[ \\t]*#(?:${allTags.join("|")})(?![\\p{L}\\p{N}_/\\-])`,
+      "g"
+    );
+  }
 }
 
 function isFilenameMode(v: unknown): v is FilenameMode {
@@ -109,6 +114,7 @@ export const DEFAULT_SETTINGS: JournalDashboardSettings = {
   templateDir: "",
   userScriptsFolder: "",
   todaySection: "## 🎯 今日事",
+  // 模板无标签任务靠区块归属；#今天 标签保留作兼容（历史任务/手写标签仍归今天列）
   columns: [
     { key: "today", label: "今天", tags: ["#今天"], color: "#FF5733" },
     { key: "tomorrow", label: "明天", tags: ["#明天"], color: "#FFA500" },

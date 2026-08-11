@@ -1,6 +1,7 @@
 import { App, TFile } from "obsidian";
 import type JournalDashboardPlugin from "./main";
-import { extractTags, replaceColumnTag } from "./settings";
+import { replaceColumnTag } from "./settings";
+import { parseTasks } from "./parse";
 
 /**
  * 日记内嵌看板：通过 markdown 代码块（```journal-board）在日记阅读视图中
@@ -17,28 +18,22 @@ interface DailyTask {
   text: string;
   tags: string[];
   done: boolean;
+  section: string;
 }
 
-/** 解析文件的根任务（嵌套子任务不单独成行） */
+/** 解析文件的根任务（直接读文件，保证实时最新；嵌套子任务不单独成行） */
 async function collectTasks(app: App, file: TFile): Promise<DailyTask[]> {
-  const cache = app.metadataCache.getFileCache(file);
-  const items = (cache?.listItems ?? []).filter(
-    (i) => typeof i.task === "string" && (i.parent ?? -1) === -1
-  );
-  if (items.length === 0) return [];
-  const lines = (await app.vault.cachedRead(file)).split("\n");
-  const tasks: DailyTask[] = [];
-  for (const item of items) {
-    const text = lines[item.position.start.line] ?? "";
-    tasks.push({
+  const content = await app.vault.cachedRead(file);
+  return parseTasks(content)
+    .filter((t) => t.root)
+    .map((t) => ({
       file,
-      line: item.position.start.line,
-      text,
-      tags: extractTags(text),
-      done: /^[xX]$/.test(item.task ?? ""),
-    });
-  }
-  return tasks;
+      line: t.line,
+      text: t.text,
+      tags: t.tags,
+      done: t.done,
+      section: t.section,
+    }));
 }
 
 /** 剥离任务行中的 checkbox 标记与列标签，得到显示文本 */
@@ -63,7 +58,7 @@ export async function renderDailyBoard(
   if (!(file instanceof TFile)) return;
   const tasks = await collectTasks(app, file);
 
-  // 分列：已完成也计算归属列（列完成度一致）；无标签 → 默认列
+  // 分列：标签优先；无标签按所在区块标题归属（如「## ⏭ 明天」→ 明天列）；否则默认列
   const cols = plugin.settings.columns.map((c) => ({
     ...c,
     pending: [] as DailyTask[],
@@ -71,10 +66,15 @@ export async function renderDailyBoard(
   }));
   const done: DailyTask[] = [];
   const defKey = plugin.settings.defaultColumnKey;
+  const defCol = cols.find((c) => c.key === defKey) ?? cols[0];
   for (const t of tasks) {
     const all = t.tags.map((x) => x.toLowerCase());
-    const hit = cols.find((c) => c.tags.some((m) => all.includes(m.toLowerCase())));
-    const target = hit ?? cols.find((c) => c.key === defKey) ?? cols[0];
+    let target = cols.find((c) => c.tags.some((m) => all.includes(m.toLowerCase())));
+    if (!target) {
+      target =
+        cols.find((c) => c.key !== defKey && t.section.includes(c.label)) ??
+        defCol;
+    }
     if (!target) continue;
     target.total++;
     if (t.done) done.push(t);
