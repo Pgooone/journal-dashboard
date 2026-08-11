@@ -246,6 +246,45 @@
   font-size: var(--font-smaller);
 }
 
+/* 面板看板内联新增（输入 + 选列） */
+.journal-dashboard .jd-board-add {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.journal-dashboard .jd-board-add-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+.journal-dashboard .jd-board-add-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+}
+
+.journal-dashboard .jd-board-add-select {
+  flex: 0 0 auto;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+.journal-dashboard .jd-board-add-btn {
+  margin-top: 0;
+  flex: 0 0 auto;
+}
+
 /* ===== 设置界面 ===== */
 
 .jd-settings-columns {

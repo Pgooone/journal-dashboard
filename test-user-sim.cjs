@@ -442,18 +442,6 @@ async function main() {
   await new Promise((r) => setTimeout(r, 30));
   check("无标签任务拖到以后列：行尾追加 #以后", readFile("日记/每日/2026-08-11.md").split("\n").some((l) => l.includes("无标签任务") && l.includes("#以后")));
 
-  console.log("══ 测试 5：新增任务 ══");
-  dom.window.prompt = () => "测试新任务";
-  const addBtn = Array.from(colByTitle["明天"].querySelectorAll("button")).find((b) => b.textContent.includes("明天"));
-  addBtn.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
-  await new Promise((r) => setTimeout(r, 30));
-  const f11afterAdd = readFile("日记/每日/2026-08-11.md");
-  check("今日日记已追加任务", f11afterAdd.includes("- [ ] 测试新任务 #明天"));
-  const lines = f11afterAdd.split("\n");
-  const addIdx = lines.findIndex((l) => l.includes("测试新任务"));
-  const nextHead = lines.slice(addIdx + 1).findIndex((l) => /^##\s/.test(l));
-  check("追加位置在「今日事」区块内（下一个标题前）", nextHead !== -1 || lines.slice(addIdx + 1).every((l) => !l.trim()), `下一标题距 ${nextHead}`);
-
   console.log("══ 测试 6：设置变更即时生效 ══");
   // 加一列
   plugin3.settings.columns.push({ key: "col-nextweek", label: "下周", tags: ["#下周"], color: "#00AA00" });
@@ -523,7 +511,7 @@ async function main() {
   check("创建后打开文件", openedFiles.some((f) => f.path === "日记/每日/2026-08-11.md"));
   const cursorLine = cursorPos ? cursorPos[0] : -1;
   const cursorLineText = newDaily.split("\n")[cursorLine] ?? "";
-  check("光标定位到首个任务内容处（col 6）", cursorPos?.[1] === 6 && /^-\s*\[ \]/.test(cursorLineText), `line ${cursorLine} col ${cursorPos?.[1]}: "${cursorLineText}"`);
+  check("光标定位到今日事下方空行（col 0）", cursorPos?.[1] === 0, `line ${cursorLine} col ${cursorPos?.[1]}: "${cursorLineText}"`);
 
   console.log("══ 测试 10：新建周记（自主渲染） ══");
   fs.mkdirSync(path.join(TEST_ROOT, "日记/每周"), { recursive: true });
@@ -554,12 +542,12 @@ async function main() {
   check("用户修改的模板标题生效", customDaily.includes("## 🎯 今日任务（用户自定义标题）"));
   check("文件分支渲染正常（mood 选择）", customDaily.includes("mood: 😄"));
   check("文件分支无占位符残留", !customDaily.includes("{{"));
-  // 模拟用户在各区块填写任务内容（空任务过滤后看板只显示有内容的任务）
+  // 模拟用户在各区块填写任务内容（模板区块下为空行，直接填写）
   const filled = readFile("日记/每日/2026-08-11.md")
-    .replace(/-\s*\[ \]\s*\n-\s*\[ \]\s*\n-\s*\[ \]\s*\n/, "- [ ] 写周报\n- [ ] 买菜\n- [ ] 汇报\n")
-    .replace(/(## ⏭ 明天\n)-\s*\[ \]\s*\n-\s*\[ \]\s*\n/, "$1- [ ] 交报告\n- [ ] 开会\n")
-    .replace(/(## 🗓 本周\n)-\s*\[ \]\s*\n/, "$1- [ ] 周报汇总\n")
-    .replace(/(## 🗂 以后\n)-\s*\[ \]\s*\n/, "$1- [ ] 学游泳\n");
+    .replace(/## 🎯 今日任务（用户自定义标题）\n\n/, "## 🎯 今日任务（用户自定义标题）\n- [ ] 写周报\n- [ ] 买菜\n- [ ] 汇报\n")
+    .replace(/## ⏭ 明天\n\n/, "## ⏭ 明天\n- [ ] 交报告\n- [ ] 开会\n")
+    .replace(/## 🗓 本周\n\n/, "## 🗓 本周\n- [ ] 周报汇总\n")
+    .replace(/## 🗂 以后\n\n/, "## 🗂 以后\n- [ ] 学游泳\n");
   fs.writeFileSync(path.join(TEST_ROOT, "日记/每日/2026-08-11.md"), filled);
 
   console.log("══ 测试 12：日记内嵌看板（journal-board 代码块） ══");
@@ -641,19 +629,21 @@ async function main() {
   await new Promise((r) => setTimeout(r, 120));
   const afterCancel = readFile("日记/每日/2026-08-11.md");
   check("取消心情弹窗后命令继续（默认 😄，不挂起）", afterCancel.includes("mood: 😄"), afterCancel.split("\n")[6]);
-  // 14b：面板「明天」列点 + 添加任务 → 插入到「## ⏭ 明天」区块（不是今日事）
+  // 14b：面板内联输入框添加任务 → 插入到「## ⏭ 明天」区块
   plugin3.refreshDashboardViews();
   await new Promise((r) => setTimeout(r, 80));
-  const cols14 = Array.from(leafView.contentEl.querySelectorAll(".jd-col"));
-  const tmr14 = cols14.find((c) => colTitleText(c).startsWith("明天"));
-  dom.window.prompt = () => "写测试报告";
-  const addBtn14 = Array.from(tmr14.querySelectorAll("button")).find((b) => (b.textContent ?? "").includes("明天"));
-  addBtn14.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
+  const addInput14 = leafView.contentEl.querySelector(".jd-board-add-input");
+  const addSel14 = leafView.contentEl.querySelector(".jd-board-add-select");
+  check("面板有内联输入框与选列下拉", !!addInput14 && !!addSel14);
+  addSel14.value = "tomorrow";
+  addInput14.value = "写测试报告";
+  const addGo14 = leafView.contentEl.querySelector(".jd-board-add-btn");
+  addGo14.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
   await new Promise((r) => setTimeout(r, 60));
   const f14 = readFile("日记/每日/2026-08-11.md").split("\n");
   const task14Idx = f14.findIndex((l) => l.includes("写测试报告"));
   const prevHead14 = f14.slice(0, task14Idx).reverse().find((l) => /^##\s/.test(l)) ?? "";
-  check("「明天」列添加的任务插入到明天区块", prevHead14.includes("明天") && !prevHead14.includes("今日事"), prevHead14);
+  check("内联添加「明天」任务插入到明天区块", prevHead14.includes("明天") && !prevHead14.includes("今日"), prevHead14);
   check("任务带 #明天 标签", f14[task14Idx]?.includes("#明天"), f14[task14Idx]);
   // 14c：空看板文件时的 Notice 提示（看板文件缺失场景）
   const noticesBefore = notices.length;

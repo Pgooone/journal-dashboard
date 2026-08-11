@@ -336,6 +336,44 @@ export class DashboardView extends ItemView {
     header.appendChild(openBtn);
     board.appendChild(header);
 
+    // 快速新增（内联输入 + 选择列；回车提交，Esc 取消）
+    const addRow = this.el("div", "jd-board-add");
+    const addInput = document.createElement("input");
+    addInput.className = "jd-board-add-input";
+    addInput.placeholder = "新任务（回车添加到「今天」）";
+    const addSel = document.createElement("select");
+    addSel.className = "jd-board-add-select";
+    for (const c of this.cols) {
+      const o = document.createElement("option");
+      o.value = c.key;
+      o.textContent = c.label;
+      addSel.appendChild(o);
+    }
+    addSel.value = this.defaultColKey;
+    const addGo = this.el("button", "jd-btn jd-board-add-btn", "＋ 添加");
+    const doAdd = () => {
+      const col = this.cols.find((c) => c.key === addSel.value) ?? this.cols[0];
+      const text = addInput.value.trim();
+      if (text && col) {
+        addInput.value = "";
+        void this.addTask(col, text);
+      }
+    };
+    addInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        doAdd();
+      } else if (e.key === "Escape") {
+        addInput.value = "";
+        addInput.blur();
+      }
+    });
+    addGo.addEventListener("click", doAdd);
+    addRow.appendChild(addInput);
+    addRow.appendChild(addSel);
+    addRow.appendChild(addGo);
+    board.appendChild(addRow);
+
     // 分桶：未完成任务按列、已完成入已完成列；每列统计总数（含已完成）用于完成度
     const tasks = await this.collectBoardTasks();
     const buckets = new Map<string, BoardTask[]>();
@@ -372,9 +410,6 @@ export class DashboardView extends ItemView {
       );
       this.attachDrop(colEl, col);
       for (const t of colTasks) colEl.appendChild(this.renderCard(t));
-      const addBtn = this.el("button", "jd-btn jd-add-btn", `+ ${col.label}`);
-      addBtn.addEventListener("click", () => void this.addTask(col));
-      colEl.appendChild(addBtn);
       colsEl.appendChild(colEl);
     }
 
@@ -490,9 +525,8 @@ export class DashboardView extends ItemView {
     });
   }
 
-  /** 新增任务：追加到今日日记「今日事」区块末尾 */
-  private async addTask(column: BoardColumn) {
-    const text = window.prompt(`新任务（归入「${column.label}」）：`, "");
+  /** 新增任务：写入今日日记对应区块末尾（内容来自看板内联输入框） */
+  private async addTask(column: BoardColumn, text: string) {
     if (!text || !text.trim()) return;
     const today = formatDate(new Date(), "YYYY-MM-DD");
     const target = this.app.vault.getAbstractFileByPath(
