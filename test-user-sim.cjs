@@ -690,14 +690,16 @@ async function main() {
   const prevHead14 = f14.slice(0, task14Idx).reverse().find((l) => /^##\s/.test(l)) ?? "";
   check("内联添加「明天」任务插入到明天区块", prevHead14.includes("明天") && !prevHead14.includes("今日"), prevHead14);
   check("任务带 #明天 标签", f14[task14Idx]?.includes("#明天"), f14[task14Idx]);
-  // 14c：空看板文件时的 Notice 提示（看板文件缺失场景）
+  // 14c：看板文件缺失时自动创建（而非仅提示）
   const noticesBefore = notices.length;
   fs.unlinkSync(path.join(TEST_ROOT, "日记/每日/任务看板.md"));
   const openBoardBtn14 = Array.from(leafView.contentEl.querySelectorAll(".jd-board-header button")).find((b) => (b.textContent ?? "").includes("打开完整看板"));
   openBoardBtn14.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
-  check("看板文件缺失时给出 Notice 提示", notices.length > noticesBefore, JSON.stringify(notices.slice(noticesBefore)));
-  // 恢复看板文件（后续测试不再依赖）
-  fs.writeFileSync(path.join(TEST_ROOT, "日记/每日/任务看板.md"), "---\nkanban_plugin: '{\"columns\":[]}'\n---\n");
+  await new Promise((r) => setTimeout(r, 80));
+  check("看板文件缺失时自动创建", fs.existsSync(path.join(TEST_ROOT, "日记/每日/任务看板.md")));
+  const createdBoard = readFile("日记/每日/任务看板.md");
+  check("创建的看板含 task-list-kanban frontmatter", createdBoard.includes("kanban_plugin:"));
+  check("创建后打开看板文件", openedFiles.some((f) => f.path === "日记/每日/任务看板.md"));
 
   // ---------- 汇总 ----------
   console.log(`\n════ 结果：${pass} 通过 / ${fail} 失败 ════`);

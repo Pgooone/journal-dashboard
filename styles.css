@@ -422,7 +422,12 @@
 
 /* ===== 日记内嵌看板（```journal-board 代码块） ===== */
 
-.jd-daily-board {
+/* Obsidian 正文容器默认有 max-width 居中收窄，让含看板的代码块容器铺满宽度 */
+.markdown-preview-sizer .jd-daily-board,
+.markdown-preview-view .jd-daily-board,
+div.jd-daily-board {
+  width: 100% !important;
+  max-width: 100% !important;
   margin: 10px 0;
 }
 
@@ -435,7 +440,7 @@
 
 .jd-daily-board .jd-db-col {
   flex: 1 1 0;
-  min-width: 130px;
+  min-width: 0;
   padding: 8px 10px;
   border-radius: 8px;
   background: var(--background-secondary);

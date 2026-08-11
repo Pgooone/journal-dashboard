@@ -339,7 +339,7 @@ export class DashboardView extends ItemView {
     const header = this.el("div", "jd-board-header");
     header.appendChild(this.el("div", "jd-board-title", "📋 任务看板"));
     const openBtn = this.el("button", "jd-btn", "打开完整看板");
-    openBtn.addEventListener("click", () => this.openFullBoard());
+    openBtn.addEventListener("click", () => void this.openFullBoard());
     header.appendChild(openBtn);
     board.appendChild(header);
 
@@ -586,11 +586,47 @@ export class DashboardView extends ItemView {
     });
   }
 
-  /** 打开 task-list-kanban 完整看板（独立视图，TextFileView 渲染） */
-  private openFullBoard() {
-    const f = this.app.vault.getAbstractFileByPath(this.plugin.settings.boardFile);
-    if (f instanceof TFile) this.openFile(f);
-    else new Notice(`看板文件不存在：${this.plugin.settings.boardFile}`);
+  /** 打开 task-list-kanban 完整看板（独立视图，TextFileView 渲染；文件不存在时自动创建） */
+  private async openFullBoard() {
+    const path = this.plugin.settings.boardFile;
+    let f: TFile | null = null;
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof TFile) {
+      f = existing;
+    } else {
+      // 看板文件缺失：按 task-list-kanban 标准 frontmatter 自动创建
+      try {
+        f = await this.app.vault.create(path, this.boardFrontmatter());
+        new Notice(`已创建看板文件：${path}`);
+      } catch (e) {
+        new Notice(`创建看板文件失败：${(e as Error).message}`);
+        return;
+      }
+    }
+    if (f) this.openFile(f);
+  }
+
+  /** 生成看板文件的 frontmatter（与 task-list-kanban 列配置一致，随面板列设置同步） */
+  private boardFrontmatter(): string {
+    const cols = this.plugin.settings.columns
+      .filter((c) => c.tags.length > 0) // 无标签列（如今天，靠默认归置）不进 task-list-kanban 列
+      .map((c, i) => ({
+        id: `column-${c.key || i}`,
+        label: c.label,
+        color: c.color,
+        matchMode: "name",
+        matchTags: [],
+      }));
+    const settings = {
+      scope: "folder",
+      uncategorizedVisibility: "auto",
+      doneVisibility: "always",
+      uncategorizedColumnName:
+        this.plugin.settings.columns.find((c) => c.key === this.plugin.settings.defaultColumnKey)?.label ?? "今天",
+      doneColumnName: "已完成",
+      columns: cols,
+    };
+    return `---\nkanban_plugin: ${JSON.stringify(settings)}\n---\n\n`;
   }
 
   private openFile(file: TFile) {
