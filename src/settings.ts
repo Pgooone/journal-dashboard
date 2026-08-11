@@ -72,6 +72,29 @@ export function extractTags(text: string): string[] {
   return text.match(/#[\p{L}\p{N}_/-]+/gu) ?? [];
 }
 
+/** 中文星期全称（星期二） */
+export function weekdayName(d: Date): string {
+  return d.toLocaleDateString("zh-CN", { weekday: "long" });
+}
+
+/** 日记文件名：2026-08-11 星期二 */
+export function dailyFilename(d: Date): string {
+  return `${formatDateStr(d, "YYYY-MM-DD")} ${weekdayName(d)}`;
+}
+
+/** 简易日期格式化（YYYY/MM/DD/HH/mm） */
+export function formatDateStr(d: Date, fmt: string): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const map: Record<string, string> = {
+    YYYY: String(d.getFullYear()),
+    MM: pad(d.getMonth() + 1),
+    DD: pad(d.getDate()),
+    HH: pad(d.getHours()),
+    mm: pad(d.getMinutes()),
+  };
+  return fmt.replace(/YYYY|MM|DD|HH|mm/g, (k) => map[k]);
+}
+
 /**
  * 拖拽换列写回：先移除任务行中的全部列标签（含目标列），
  * 再追加目标列标签。避免出现 #今天 #明天 并存导致拖拽无效。

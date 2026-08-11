@@ -60,6 +60,11 @@ function displayText(text: string, plugin: JournalDashboardPlugin): string {
       t = t.split(` ${tag}`).join("").split(`\t${tag}`).join("");
     }
   }
+  // 来源双链弱化显示：⏪ [[2026-08-11 星期二]] → ⏪ 08-11
+  t = t.replace(/⏪\s*\[\[([^\]]+)\]\]/g, (_m, name: string) => {
+    const d = name.match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
+    return `⏪ ${d ?? name}`;
+  });
   return t.trim() || "（待填写）";
 }
 
@@ -248,6 +253,10 @@ async function moveTaskToSection(
     const block = lines.slice(line, blockEnd + 1);
     // 根任务去除列标签（子任务行标签不动），区块归属接管
     block[0] = replaceColumnTag(block[0], plugin.settings.columns, "");
+    // 追加来源双链（已有 ⏪ 链接不重复，追溯链指向最初来源）
+    if (!block[0].includes("⏪")) {
+      block[0] += ` ⏪ [[${file.basename}]]`;
+    }
 
     // 删除源块；若目标位置在源块之后需偏移行号
     lines.splice(line, block.length);

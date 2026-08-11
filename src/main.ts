@@ -12,10 +12,13 @@ import {
 import { TEMPLATES } from "./templates";
 import { DashboardView, DASHBOARD_VIEW_TYPE } from "./view";
 import { renderDailyBoard } from "./daily-board";
+import { parseTasks } from "./parse";
 import {
+  dailyFilename,
   DEFAULT_SETTINGS,
   JournalDashboardSettingTab,
   mergeSettings,
+  weekdayName,
   type CreateCommandSettings,
   type FilenameMode,
   type JournalDashboardSettings,
@@ -83,6 +86,7 @@ interface RenderContext {
   prevWeek: string;
   nextWeek: string;
   weekDays: string;
+  weekDaysLeft: string; // 本周剩余天数（含今天）
   title: string;
   subject: string;
 }
@@ -128,6 +132,35 @@ class OptionModal extends Modal {
         onPick(o.value);
       });
     }
+  }
+}
+
+/** 确认弹窗（确认/跳过）；Esc 关闭视为跳过 */
+class ConfirmModal extends Modal {
+  private onDone: (v: boolean) => void;
+  constructor(app: App, title: string, message: string, onDone: (v: boolean) => void) {
+    super(app);
+    this.onDone = onDone;
+    this.setTitle(title);
+    this.contentEl.createEl("p", { text: message, cls: "jd-modal-message" });
+    const btns = this.contentEl.createDiv({ cls: "jd-modal-btns" });
+    const ok = btns.createEl("button", { text: "确认" });
+    ok.addClass("mod-cta");
+    ok.addEventListener("click", () => {
+      this.onDone(true);
+      this.close();
+    });
+    const skip = btns.createEl("button", { text: "跳过" });
+    skip.addEventListener("click", () => {
+      this.onDone(false);
+      this.close();
+    });
+    this.modalEl.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        this.onDone(false);
+        this.close();
+      }
+    });
   }
 }
 
@@ -259,7 +292,7 @@ export default class JournalDashboardPlugin extends Plugin {
   ): Promise<string | null> {
     switch (mode) {
       case "date":
-        return formatDate(new Date(), "YYYY-MM-DD");
+        return dailyFilename(new Date()); // 2026-08-11 星期二
       case "week":
         return isoWeek(new Date());
       case "meeting-date": {
@@ -279,22 +312,26 @@ export default class JournalDashboardPlugin extends Plugin {
     const now = new Date();
     const dayMs = 86400000;
     const date = formatDate(now, "YYYY-MM-DD");
-    const prev = formatDate(new Date(now.getTime() - dayMs), "YYYY-MM-DD");
-    const next = formatDate(new Date(now.getTime() + dayMs), "YYYY-MM-DD");
+    // 互链用带星期的日记文件名（与文件名格式一致）
+    const prev = dailyFilename(new Date(now.getTime() - dayMs));
+    const next = dailyFilename(new Date(now.getTime() + dayMs));
     const week = isoWeek(now);
     // 本周一（getDay: 0=周日 → 7）
     const monday = new Date(now.getTime() - ((now.getDay() || 7) - 1) * dayMs);
     const sunday = new Date(monday.getTime() + 6 * dayMs);
     const mmdd = (d: Date) => formatDate(d, "MM-DD");
     const yyyymmdd = (d: Date) => formatDate(d, "YYYY-MM-DD");
+    // 周记 7 天嵌入用带星期的文件名
     const weekDays: string[] = [];
     for (let i = 0; i < 7; i++) {
-      weekDays.push(`![[${yyyymmdd(new Date(monday.getTime() + i * dayMs))}]]`);
+      weekDays.push(`![[${dailyFilename(new Date(monday.getTime() + i * dayMs))}]]`);
     }
+    // 本周剩余天数（含今天：周日-今天+1）
+    const weekDaysLeft = 7 - (now.getDay() || 7) + 1;
     return {
       date,
       time: formatDate(now, "HH:mm"),
-      weekday: now.toLocaleDateString("zh-CN", { weekday: "long" }),
+      weekday: weekdayName(now),
       week,
       weekRange: `${mmdd(monday)} ~ ${mmdd(sunday)}`,
       weekRangeFull: `${yyyymmdd(monday)} ~ ${yyyymmdd(sunday)}`,
@@ -303,6 +340,7 @@ export default class JournalDashboardPlugin extends Plugin {
       prevWeek: isoWeek(new Date(now.getTime() - 7 * dayMs)),
       nextWeek: isoWeek(new Date(now.getTime() + 7 * dayMs)),
       weekDays: weekDays.join("\n"),
+      weekDaysLeft: String(weekDaysLeft),
       title,
       subject,
     };
@@ -344,6 +382,7 @@ export default class JournalDashboardPlugin extends Plugin {
       ["{{prev_week}}", ctx.prevWeek],
       ["{{next_week}}", ctx.nextWeek],
       ["{{week_days}}", ctx.weekDays],
+      ["{{week_days_left}}", ctx.weekDaysLeft],
       ["{{title}}", ctx.title],
     ];
     for (const [ph, v] of statics) content = content.split(ph).join(v);
@@ -428,6 +467,11 @@ export default class JournalDashboardPlugin extends Plugin {
       return;
     }
 
+    // 4.5 自动顺延：明日任务到期转今日事、跨周本周任务顺延（弹窗确认）
+    if (cmd.id === "create-daily") {
+      await this.autoCarryOver(file);
+    }
+
     // 5. 打开并定位光标
     await this.app.workspace.getLeaf(false).openFile(file);
     if (cursor) {
@@ -436,6 +480,159 @@ export default class JournalDashboardPlugin extends Plugin {
         view.editor.setCursor(cursor.line, cursor.col);
       }
     }
+  }
+
+  // ================= 自动顺延（明日任务 / 跨周本周任务） =================
+
+  /**
+   * 创建新日记后自动顺延：
+   * 1. 最近一篇含「明天」任务的日记 → 弹窗确认 → 移入新日记「今日事」（无双链）
+   * 2. 跨周检测：最近一篇含「本周」任务的日记，其 week 与当前周不同 → 弹窗确认 → 移入新「本周」
+   */
+  private async autoCarryOver(newFile: TFile) {
+    const others = this.listDailies().filter((f) => f.path !== newFile.path);
+
+    // 1. 明日任务（最近一篇含「明天」任务的日记）
+    for (const f of others) {
+      const content = await this.app.vault.read(f);
+      const tasks = parseTasks(content);
+      const tomorrow = tasks.filter((t) => t.root && !t.empty && t.section.includes("明天"));
+      if (tomorrow.length === 0) continue;
+      const preview = tomorrow
+        .slice(0, 3)
+        .map((t) => t.text.replace(/^-\s*\[[ xX]\]\s*/, "").trim() || "（待填写）")
+        .join("、");
+      const ok = await this.confirmDialog(
+        `明日任务到期（${tomorrow.length} 个）`,
+        `来自 ${f.basename}：${preview}${tomorrow.length > 3 ? "…" : ""}\n是否移入今日「今日事」？`
+      );
+      if (ok) {
+        await this.moveBlocksAcross(f, tomorrow.map((t) => t.line), newFile, "today");
+        new Notice(`已把 ${tomorrow.length} 个明日任务移入今日事`);
+      }
+      break; // 只处理最近一篇
+    }
+
+    // 2. 跨周本周任务
+    for (const f of others) {
+      const content = await this.app.vault.read(f);
+      const tasks = parseTasks(content);
+      const weekTasks = tasks.filter((t) => t.root && !t.empty && t.section.includes("本周"));
+      if (weekTasks.length === 0) continue;
+      // 该日记的 week 字段与当前周不同 → 跨周
+      const fm = this.app.metadataCache.getFileCache(f)?.frontmatter as Record<string, unknown> | undefined;
+      const fWeek = typeof fm?.week === "string" ? fm.week : "";
+      const curWeek = this.currentWeekRange();
+      if (fWeek && fWeek !== curWeek) {
+        const preview = weekTasks
+          .slice(0, 3)
+          .map((t) => t.text.replace(/^-\s*\[[ xX]\]\s*/, "").trim() || "（待填写）")
+          .join("、");
+        const ok = await this.confirmDialog(
+          `本周任务跨周（${weekTasks.length} 个）`,
+          `来自 ${f.basename}（上周 ${fWeek}）：${preview}${weekTasks.length > 3 ? "…" : ""}\n是否顺延到本周「本周」？`
+        );
+        if (ok) {
+          await this.moveBlocksAcross(f, weekTasks.map((t) => t.line), newFile, "week");
+          new Notice(`已把 ${weekTasks.length} 个本周任务顺延到本周`);
+        }
+        break;
+      }
+    }
+  }
+
+  /** 日记文件夹下所有日记（按日期倒序，最近在前） */
+  private listDailies(): TFile[] {
+    const folder = this.settings.dailyFolder;
+    return this.app.vault
+      .getMarkdownFiles()
+      .filter(
+        (f) =>
+          f.path.startsWith(folder + "/") &&
+          !f.basename.startsWith("任务看板") &&
+          !f.basename.startsWith("Kanban")
+      )
+      .sort((a, b) => {
+        const da = a.basename.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] ?? "";
+        const db = b.basename.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] ?? "";
+        return db.localeCompare(da);
+      });
+  }
+
+  /** 当前周日期范围（YYYY-MM-DD ~ YYYY-MM-DD，与 frontmatter week 一致） */
+  private currentWeekRange(): string {
+    const now = new Date();
+    const dayMs = 86400000;
+    const monday = new Date(now.getTime() - ((now.getDay() || 7) - 1) * dayMs);
+    const sunday = new Date(monday.getTime() + 6 * dayMs);
+    const fmt = (x: Date) => formatDate(x, "YYYY-MM-DD");
+    return `${fmt(monday)} ~ ${fmt(sunday)}`;
+  }
+
+  /** 跨文件移动任务块（根任务+缩进子任务）：源删除 → 插入目标区块末尾（不带双链） */
+  private async moveBlocksAcross(
+    source: TFile,
+    lines: number[],
+    target: TFile,
+    targetSection: "today" | "week"
+  ): Promise<void> {
+    // 1. 从源文件提取块并删除（行号从后往前删，避免偏移）
+    let blocks: string[][] = [];
+    await this.app.vault.process(source, (data) => {
+      const all = data.split("\n");
+      const blocksByLine = new Map<number, string[]>();
+      for (const ln of lines) {
+        if (ln < 0 || ln >= all.length) continue;
+        const block = [all[ln]];
+        for (let i = ln + 1; i < all.length; i++) {
+          if (/^\s+-\s*\[/.test(all[i])) block.push(all[i]);
+          else if (/^-\s*\[/.test(all[i])) break;
+          else if (all[i].trim() !== "") break;
+        }
+        blocksByLine.set(ln, block);
+      }
+      const toDelete = new Set<number>();
+      for (const [ln, block] of blocksByLine) {
+        for (let i = ln; i < ln + block.length; i++) toDelete.add(i);
+      }
+      blocks = [...blocksByLine.values()];
+      return all.filter((_, i) => !toDelete.has(i)).join("\n");
+    });
+
+    // 2. 插入目标文件目标区块末尾
+    if (blocks.length === 0) return;
+    await this.app.vault.process(target, (data) => {
+      const all = data.split("\n");
+      let titleIdx = -1;
+      for (let i = 0; i < all.length; i++) {
+        if (/^##\s+/.test(all[i])) {
+          const ok =
+            targetSection === "today"
+              ? all[i].trim().startsWith(this.settings.todaySection) || all[i].includes("今日")
+              : all[i].includes("本周");
+          if (ok) {
+            titleIdx = i;
+            break;
+          }
+        }
+      }
+      if (titleIdx === -1) return data;
+      let insertAt = titleIdx;
+      for (let i = titleIdx + 1; i < all.length; i++) {
+        if (/^##\s+/.test(all[i])) break;
+        insertAt = i;
+      }
+      all.splice(insertAt + 1, 0, ...blocks.flat());
+      return all.join("\n");
+    });
+  }
+
+  /** 确认弹窗（确认/跳过），返回用户选择 */
+  private confirmDialog(title: string, message: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      const modal = new ConfirmModal(this.app, title, message, (v) => resolve(v));
+      modal.open();
+    });
   }
 
   /** 一键搭建/恢复模板库（幂等；forceOverwrite 时强制覆写外部配置） */

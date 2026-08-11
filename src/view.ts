@@ -1,6 +1,6 @@
 import { ItemView, Notice, WorkspaceLeaf, TFile } from "obsidian";
 import type JournalDashboardPlugin from "./main";
-import { escapeRe, replaceColumnTag } from "./settings";
+import { dailyFilename, escapeRe, replaceColumnTag } from "./settings";
 import { parseTasks } from "./parse";
 
 // 注意：不能与旧插件 my-template-library 的 viewType 相同，
@@ -39,9 +39,9 @@ interface BoardTask {
   progress: [number, number]; // 子任务进度 [已完成, 总数]（无子任务 [0,0]）
 }
 
-/** 来源日期友好显示：今天/昨天/前天/MM-DD */
+/** 来源日期友好显示：今天/昨天/前天/MM-DD（文件名兼容带星期后缀） */
 function formatSourceDate(basename: string): string {
-  const m = basename.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const m = basename.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return basename;
   const d = new Date(+m[1], +m[2] - 1, +m[3]);
   const now = new Date();
@@ -326,9 +326,9 @@ export class DashboardView extends ItemView {
     return { column: def, done: t.done };
   }
 
-  /** 任务来源日期数值（用于列内排序，新→旧） */
+  /** 任务来源日期数值（用于列内排序，新→旧；文件名兼容带星期后缀） */
   private dateValue(t: BoardTask): number {
-    const m = t.file.basename.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const m = t.file.basename.match(/^(\d{4})-(\d{2})-(\d{2})/);
     return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : 0;
   }
 
@@ -473,6 +473,11 @@ export class DashboardView extends ItemView {
     const display = task.text
       .replace(/^\s*-\s*\[[ xX]\]\s*/, "")
       .replace(this.stripRe(), "")
+      // 来源双链弱化显示：⏪ [[2026-08-11 星期二]] → ⏪ 08-11
+      .replace(/⏪\s*\[\[([^\]]+)\]\]/g, (_m, name: string) => {
+        const d = name.match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
+        return `⏪ ${d ?? name}`;
+      })
       .trim();
     main.appendChild(this.el("span", "jd-card-item-text", display || "（待填写）"));
     main.appendChild(this.el("span", "jd-card-item-meta", formatSourceDate(task.file.basename)));
@@ -586,7 +591,7 @@ export class DashboardView extends ItemView {
 
   private async addTask(column: BoardColumn, text: string) {
     if (!text || !text.trim()) return;
-    const today = formatDate(new Date(), "YYYY-MM-DD");
+    const today = dailyFilename(new Date()); // 2026-08-11 星期二
     const target = this.app.vault.getAbstractFileByPath(
       `${this.plugin.settings.dailyFolder}/${today}.md`
     );
