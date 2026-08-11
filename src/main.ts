@@ -156,8 +156,8 @@ export default class JournalDashboardPlugin extends Plugin {
     // 设置界面
     this.addSettingTab(new JournalDashboardSettingTab(this.app, this));
 
-    // 日记内嵌看板：```journal-board 代码块 → 阅读视图渲染当天看板
-    // 稳定容器 + vault.modify 事件：编辑日记后看板实时刷新（无需切换文档）
+    // 日记内嵌看板：```journal-board 代码块 → 阅读/编辑视图渲染当天看板
+    // 稳定容器 + vault.modify 事件：编辑日记后看板实时刷新
     this.registerMarkdownCodeBlockProcessor("journal-board", (source, el, ctx) => {
       const host = new MarkdownRenderChild(el);
       ctx.addChild(host);
@@ -167,6 +167,16 @@ export default class JournalDashboardPlugin extends Plugin {
           if (f.path === ctx.sourcePath) void rerender();
         })
       );
+      // 编辑模式（CodeMirror）容器可能因布局未就绪而宽度为 0，
+      // 延迟到布局完成后再渲染，避免内容被挤压为 0 宽
+      const render = () => {
+        if (el.offsetWidth === 0 && el.isConnected) {
+          requestAnimationFrame(render);
+          return;
+        }
+        void rerender();
+      };
+      render();
       return rerender();
     });
 

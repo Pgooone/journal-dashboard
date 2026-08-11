@@ -442,12 +442,6 @@ div.jd-daily-board,
   width: 100%;
 }
 
-/* 编辑视图（CodeMirror）的代码块容器可能受编辑器布局收窄，
-   隐藏其中的内嵌看板（看板只在阅读/实时预览视图渲染展示） */
-.cm-preview-code-block .jd-daily-board {
-  display: none !important;
-}
-
 .jd-daily-board .jd-db-col {
   flex: 1 1 0%;
   min-width: 140px;
