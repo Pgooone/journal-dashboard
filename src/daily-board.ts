@@ -21,19 +21,24 @@ interface DailyTask {
   section: string;
   /** 子任务进度：已完成 / 总数（无子任务为 0/0） */
   progress: [number, number];
+  /** 子任务明细（行号/文本/done）——内嵌看板可展开子任务列表用 */
+  childItems: { line: number; text: string; done: boolean }[];
 }
 
-/** 解析文件的根任务（含子任务进度；嵌套子任务与空任务不单独显示） */
+/** 解析文件的根任务（含子任务进度与明细；嵌套子任务与空任务不单独显示） */
 async function collectTasks(app: App, file: TFile): Promise<DailyTask[]> {
   const content = await app.vault.read(file);
   const all = parseTasks(content);
-  const lineDone = new Map<number, boolean>();
-  for (const t of all) lineDone.set(t.line, t.done);
+  const byLine = new Map(all.map((t) => [t.line, t]));
   return all
     .filter((t) => t.root && !t.empty)
     .map((t) => {
       const total = t.childLines.length;
-      const done = t.childLines.filter((l) => lineDone.get(l)).length;
+      const done = t.childLines.filter((l) => byLine.get(l)?.done).length;
+      const childItems = t.childLines.map((l) => {
+        const c = byLine.get(l);
+        return { line: l, text: c?.text ?? "", done: c?.done ?? false };
+      });
       return {
         file,
         line: t.line,
@@ -42,6 +47,7 @@ async function collectTasks(app: App, file: TFile): Promise<DailyTask[]> {
         done: t.done,
         section: t.section,
         progress: [done, total] as [number, number],
+        childItems,
       };
     });
 }
@@ -202,6 +208,9 @@ function renderItem(
     });
   }
 
+  // 第一行：勾选框 + 任务文字 + 进度徽章（有子任务时可点击展开子任务列表）
+  const main = document.createElement("div");
+  main.className = "jd-db-main";
   // 勾选/取消勾选（自绘勾选框，CSS 绘制不受 Obsidian 预览样式影响）
   const box = document.createElement("span");
   box.className = "jd-db-check" + (t.done ? " checked" : "");
@@ -209,24 +218,63 @@ function renderItem(
     e.stopPropagation();
     void toggleTask(app, plugin, t, rootEl, sourcePath);
   });
-  item.appendChild(box);
-  item.appendChild(document.createTextNode(displayText(t.text, plugin)));
+  main.appendChild(box);
+  main.appendChild(document.createTextNode(displayText(t.text, plugin)));
 
-  // 子任务进度徽章 + 进度条
+  // 子任务进度徽章（点击展开/收起子任务列表）
   const [pDone, pTotal] = t.progress;
+  let childrenEl: HTMLElement | null = null;
   if (pTotal > 0) {
     const badge = document.createElement("span");
-    badge.className = "jd-db-progress-badge";
-    badge.textContent = `${pDone}/${pTotal}`;
-    item.appendChild(badge);
+    badge.className = "jd-db-progress-badge jd-db-progress-toggle";
+    badge.textContent = `${pDone}/${pTotal} ▸`;
+    main.appendChild(badge);
+
+    // 第二行：进度条
     const bar = document.createElement("div");
     bar.className = "jd-db-progress";
     const fill = document.createElement("div");
     fill.className = "jd-db-progress-fill";
     fill.style.width = `${Math.round((pDone / pTotal) * 100)}%`;
     bar.appendChild(fill);
+
+    // 第三行：可展开子任务列表（每个子任务可勾选，实时更新根进度）
+    childrenEl = document.createElement("div");
+    childrenEl.className = "jd-db-children";
+    childrenEl.style.display = "none";
+    for (const c of t.childItems) {
+      const cRow = document.createElement("div");
+      cRow.className = "jd-db-child" + (c.done ? " done" : "");
+      const cBox = document.createElement("span");
+      cBox.className = "jd-db-check" + (c.done ? " checked" : "");
+      cBox.addEventListener("click", (e) => {
+        e.stopPropagation();
+        void rewriteLine(app, t.file, c.line, (l) =>
+          l.replace(/(-\s*\[)([ xX])(\])/, (_m, a: string, b: string, cc: string) => `${a}${b === " " ? "x" : " "}${cc}`)
+        ).then(() => renderDailyBoard(app, plugin, rootEl, sourcePath));
+      });
+      cRow.appendChild(cBox);
+      const cText = document.createElement("span");
+      cText.className = "jd-db-child-text";
+      cText.textContent = c.text.replace(/^\s*-\s*\[[ xX]\]\s*/, "").trim() || "（待填写）";
+      cRow.appendChild(cText);
+      childrenEl.appendChild(cRow);
+    }
+
+    badge.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const open = childrenEl!.style.display !== "none";
+      childrenEl!.style.display = open ? "none" : "";
+      badge.textContent = `${pDone}/${pTotal} ${open ? "▸" : "▾"}`;
+    });
+
+    item.appendChild(main);
     item.appendChild(bar);
+    item.appendChild(childrenEl);
+    return item;
   }
+
+  item.appendChild(main);
   return item;
 }
 

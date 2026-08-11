@@ -448,36 +448,37 @@ export class DashboardView extends ItemView {
     card.setAttribute("data-path", task.file.path);
     card.setAttribute("data-line", String(task.line));
 
-    // checkbox：自绘勾选框（CSS 绘制，不受 Obsidian 预览样式影响），点击勾选/取消勾选写回
+    // 第一行：勾选框 + 任务文字 + 日期徽章（文字占满一行，不被挤压竖排）
+    const main = document.createElement("div");
+    main.className = "jd-card-main";
     const box = document.createElement("span");
     box.className = "jd-check" + (task.done ? " checked" : "");
     box.addEventListener("click", (e) => {
       e.stopPropagation();
       void this.toggleTask(task);
     });
-    card.appendChild(box);
-
+    main.appendChild(box);
     // 任务文本（剥离 checkbox 标记与列标签显示，避免与勾选图标重复）
     const display = task.text
       .replace(/^\s*-\s*\[[ xX]\]\s*/, "")
       .replace(this.stripRe(), "")
       .trim();
-    card.appendChild(this.el("span", "jd-card-item-text", display || "（待填写）"));
+    main.appendChild(this.el("span", "jd-card-item-text", display || "（待填写）"));
+    main.appendChild(this.el("span", "jd-card-item-meta", formatSourceDate(task.file.basename)));
+    card.appendChild(main);
 
-    // 子任务进度徽章 + 进度条
+    // 第二行：子任务进度（徽章 + 进度条），有子任务才显示
     const [pDone, pTotal] = task.progress;
     if (pTotal > 0) {
-      card.appendChild(
-        this.el("span", "jd-progress-badge", `${pDone}/${pTotal}`)
-      );
+      const prog = this.el("div", "jd-card-progress");
+      prog.appendChild(this.el("span", "jd-progress-badge", `${pDone}/${pTotal}`));
       const bar = this.el("div", "jd-progress");
       const fill = this.el("div", "jd-progress-fill");
       fill.style.width = `${Math.round((pDone / pTotal) * 100)}%`;
       bar.appendChild(fill);
-      card.appendChild(bar);
+      prog.appendChild(bar);
+      card.appendChild(prog);
     }
-
-    card.appendChild(this.el("span", "jd-card-item-meta", formatSourceDate(task.file.basename)));
 
     if (!task.done) {
       card.addEventListener("dragstart", (e) => {

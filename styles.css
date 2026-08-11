@@ -169,13 +169,19 @@
 
 .journal-dashboard .jd-card-item {
   display: flex;
-  align-items: flex-start;
-  gap: 6px;
+  flex-direction: column;
+  gap: 4px;
   padding: 6px 8px;
   border-radius: 8px;
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   cursor: grab;
+}
+
+.journal-dashboard .jd-card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
 }
 
 .journal-dashboard .jd-card-item:hover {
@@ -189,6 +195,18 @@
 
 .journal-dashboard .jd-card-item.done .jd-card-item-text {
   text-decoration: line-through;
+}
+
+.journal-dashboard .jd-card-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 20px;
+}
+
+.journal-dashboard .jd-card-progress .jd-progress {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* 自绘勾选框：span + CSS 绘制，避免 Obsidian 预览视图隐藏原生 checkbox */
@@ -454,12 +472,18 @@
 
 .jd-daily-board .jd-db-item {
   display: flex;
-  align-items: flex-start;
-  gap: 5px;
+  flex-direction: column;
+  gap: 3px;
   font-size: var(--font-ui-small);
-  padding: 3px 4px;
+  padding: 4px 6px;
   border-radius: 5px;
   color: var(--text-normal);
+}
+
+.jd-daily-board .jd-db-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
 }
 
 .jd-daily-board .jd-db-item:hover {
@@ -471,6 +495,43 @@
 }
 
 .jd-daily-board .jd-db-item.done {
+  text-decoration: line-through;
+}
+
+.jd-daily-board .jd-db-progress-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.jd-daily-board .jd-db-item .jd-db-progress {
+  flex: none;
+  margin: 2px 0 0 20px;
+  height: 4px;
+}
+
+.jd-daily-board .jd-db-children {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 0 20px;
+  padding-left: 8px;
+  border-left: 2px solid var(--background-modifier-border);
+}
+
+.jd-daily-board .jd-db-child {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  padding: 2px 0;
+}
+
+.jd-daily-board .jd-db-child.done {
+  opacity: 0.6;
+}
+
+.jd-daily-board .jd-db-child.done .jd-db-child-text {
   text-decoration: line-through;
 }
 

@@ -643,6 +643,29 @@ async function main() {
   const doneLine = readFile("日记/每日/2026-08-11.md").split("\n")[dragLine];
   check("拖到已完成列：自动勾选 - [x]", /^- \[x\]/.test(doneLine), doneLine);
 
+  console.log("══ 测试 15：内嵌看板子任务展开（勾选子任务更新根进度） ══");
+  // 在 08-10 日记（含 5/10 子任务的根任务）渲染内嵌看板
+  const dbEl15 = document.createElement("div");
+  await blockHandlers["journal-board"]("", dbEl15, { sourcePath: "日记/每日/2026-08-10.md", addChild: () => {} });
+  await new Promise((r) => setTimeout(r, 50));
+  const projItem15 = Array.from(dbEl15.querySelectorAll(".jd-db-item")).find((i) => (i.textContent ?? "").includes("项目推进"));
+  check("内嵌看板根任务显示进度徽章 5/10", !!projItem15?.querySelector(".jd-db-progress-badge") && projItem15.querySelector(".jd-db-progress-badge").textContent.includes("5/10"), projItem15?.querySelector(".jd-db-progress-badge")?.textContent);
+  const childrenEl15 = projItem15.querySelector(".jd-db-children");
+  check("子任务列表默认收起", childrenEl15?.style.display === "none");
+  check("子任务列表含 10 个可勾选项", childrenEl15?.querySelectorAll(".jd-db-child").length === 10, `实际 ${childrenEl15?.querySelectorAll(".jd-db-child").length}`);
+  // 展开子任务列表
+  projItem15.querySelector(".jd-db-progress-badge").dispatchEvent(new dom.window.Event("click", { bubbles: true }));
+  check("点击徽章展开子任务列表", childrenEl15.style.display !== "none");
+  // 勾选第一个未完成子任务（子任务6，已完成 5→6）
+  const firstUnchecked15 = Array.from(childrenEl15.querySelectorAll(".jd-db-child")).find((c) => !c.className.includes("done"));
+  check("勾选前子任务6未完成", !readFile("日记/每日/2026-08-10.md").includes("- [x] 子任务6"));
+  firstUnchecked15.querySelector(".jd-db-check").dispatchEvent(new dom.window.Event("click", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 60));
+  check("勾选子任务后写回日记（子任务6 - [x]）", readFile("日记/每日/2026-08-10.md").includes("- [x] 子任务6"));
+  // 进度徽章应更新为 6/10（重渲染后）
+  const projBadge15b = Array.from(dbEl15.querySelectorAll(".jd-db-item")).find((i) => (i.textContent ?? "").includes("项目推进"))?.querySelector(".jd-db-progress-badge");
+  check("勾选子任务后根任务进度更新为 6/10", projBadge15b?.textContent.includes("6/10"), projBadge15b?.textContent);
+
   console.log("══ 测试 14：用户旅程（取消弹窗不挂起 + 分区添加任务） ══");
   // 14a：心情弹窗按 Esc 取消 → 命令继续（默认心情），不卡死
   StubModal.cancelNext = true;
