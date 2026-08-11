@@ -82,7 +82,7 @@ export const DEFAULT_SETTINGS: JournalDashboardSettings = {
   dailyFolder: "日记/每日",
   weeklyFolder: "日记/每周",
   inboxFolder: "",
-  boardFile: "日记/每日/Kanban-1786411859061.md",
+  boardFile: "日记/每日/任务看板.md",
   templateDir: "",
   userScriptsFolder: "",
   todaySection: "## 🎯 今日事",

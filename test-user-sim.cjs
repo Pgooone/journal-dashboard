@@ -101,7 +101,7 @@ tags:
 -
 `);
 
-write("日记/每日/Kanban-1786411859061.md", `---
+write("日记/每日/任务看板.md", `---
 kanban_plugin: '{"columns":[]}'
 ---
 `);
@@ -491,7 +491,7 @@ async function main() {
   openedFiles.length = 0;
   const openBoardBtn = Array.from(root.querySelectorAll(".jd-board-header button")).find((b) => b.textContent.includes("打开完整看板"));
   openBoardBtn.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
-  check("点击打开完整看板 → 打开看板文件", openedFiles.some((f) => f.path === "日记/每日/Kanban-1786411859061.md"), JSON.stringify(openedFiles));
+  check("点击打开完整看板 → 打开看板文件", openedFiles.some((f) => f.path === "日记/每日/任务看板.md"), JSON.stringify(openedFiles));
 
   console.log("══ 测试 9：新建日记（插件自主渲染，内嵌模板回退） ══");
   // 测试 vault 没有插件模板文件 → 走内嵌 TEMPLATES 回退
