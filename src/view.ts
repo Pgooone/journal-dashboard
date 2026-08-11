@@ -100,7 +100,8 @@ export class DashboardView extends ItemView {
 
   /**
    * 标签剥离正则：每次调用新建（规避全局正则 lastIndex 状态污染）；
-   * 标签按长度降序排列，防止 #本周 误剥 #本周五 的前缀。
+   * 负向断言 `(?![\p{L}\p{N}_/-])` 确保只匹配完整标签 token，
+   * 防止 #本周 误剥 #本周五 的前缀。
    */
   private stripRe(): RegExp {
     const tags = this.cols
@@ -108,7 +109,10 @@ export class DashboardView extends ItemView {
       .map((t) => escapeRe(t.slice(1)))
       .filter(Boolean)
       .sort((a, b) => b.length - a.length);
-    return new RegExp(`[ \\t]*#(?:${tags.join("|")})`, "g");
+    return new RegExp(
+      `[ \\t]*#(?:${tags.join("|")})(?![\\p{L}\\p{N}_/\\-])`,
+      "gu"
+    );
   }
 
   /** 收集日记元数据（frontmatter + 任务数） */
@@ -377,8 +381,11 @@ export class DashboardView extends ItemView {
     });
     card.appendChild(box);
 
-    // 任务文本（剥离列标签显示）
-    const display = task.text.replace(this.stripRe(), "").trim();
+    // 任务文本（剥离 checkbox 标记与列标签显示，避免与勾选图标重复）
+    const display = task.text
+      .replace(/^\s*-\s*\[[ xX]\]\s*/, "")
+      .replace(this.stripRe(), "")
+      .trim();
     card.appendChild(this.el("span", "jd-card-item-text", display || "（待填写）"));
 
     card.appendChild(this.el("span", "jd-card-item-meta", task.file.basename));
@@ -417,13 +424,17 @@ export class DashboardView extends ItemView {
       const line = parseInt(lineStr, 10);
       if (Number.isNaN(line)) return;
       void this.modifyTaskLine({ file, line, text: "", tags: [], done: false }, (l) => {
-        // 每次新建非全局正则，避免 lastIndex 状态污染；标签按长度降序防前缀误替
+        // 每次新建非全局正则，避免 lastIndex 状态污染；
+        // 负向断言只替换完整标签 token，防止 #本周 误替 #本周五 的前缀
         const matchTags = column.match
           .map((t) => escapeRe(t.slice(1)))
           .filter(Boolean)
           .sort((a, b) => b.length - a.length);
         if (matchTags.length === 0) return `${l} ${column.tag}`;
-        const tagRe = new RegExp(`#(?:${matchTags.join("|")})`);
+        const tagRe = new RegExp(
+          `#(?:${matchTags.join("|")})(?![\\p{L}\\p{N}_/\\-])`,
+          "u"
+        );
         return tagRe.test(l) ? l.replace(tagRe, column.tag) : `${l} ${column.tag}`;
       });
     });
