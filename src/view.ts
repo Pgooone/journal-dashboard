@@ -36,6 +36,7 @@ interface BoardTask {
   tags: string[]; // 从行文本解析出的标签（含 #）
   done: boolean;
   section: string; // 所在区块标题（无标签任务的区块归属用）
+  progress: [number, number]; // 子任务进度 [已完成, 总数]（无子任务 [0,0]）
 }
 
 /** 来源日期友好显示：今天/昨天/前天/MM-DD */
@@ -282,8 +283,13 @@ export class DashboardView extends ItemView {
       .filter((f) => f.path.startsWith(folder + "/") && f.path !== boardFile);
     for (const file of files) {
       const content = await this.app.vault.read(file);
-      for (const t of parseTasks(content)) {
+      const all = parseTasks(content);
+      const lineDone = new Map<number, boolean>();
+      for (const t of all) lineDone.set(t.line, t.done);
+      for (const t of all) {
         if (!t.root || t.empty) continue; // 空任务（模板预置填写位）不显示
+        const total = t.childLines.length;
+        const done = t.childLines.filter((l) => lineDone.get(l)).length;
         tasks.push({
           file,
           line: t.line,
@@ -291,6 +297,7 @@ export class DashboardView extends ItemView {
           tags: t.tags,
           done: t.done,
           section: t.section,
+          progress: [done, total],
         });
       }
     }
@@ -457,6 +464,19 @@ export class DashboardView extends ItemView {
       .trim();
     card.appendChild(this.el("span", "jd-card-item-text", display || "（待填写）"));
 
+    // 子任务进度徽章 + 进度条
+    const [pDone, pTotal] = task.progress;
+    if (pTotal > 0) {
+      card.appendChild(
+        this.el("span", "jd-progress-badge", `${pDone}/${pTotal}`)
+      );
+      const bar = this.el("div", "jd-progress");
+      const fill = this.el("div", "jd-progress-fill");
+      fill.style.width = `${Math.round((pDone / pTotal) * 100)}%`;
+      bar.appendChild(fill);
+      card.appendChild(bar);
+    }
+
     card.appendChild(this.el("span", "jd-card-item-meta", formatSourceDate(task.file.basename)));
 
     if (!task.done) {
@@ -493,7 +513,7 @@ export class DashboardView extends ItemView {
       const line = parseInt(lineStr, 10);
       if (Number.isNaN(line)) return;
       void this.modifyTaskLine(
-        { file, line, text: "", tags: [], done: false, section: "" },
+        { file, line, text: "", tags: [], done: false, section: "", progress: [0, 0] },
         (l) =>
           // 移除全部列标签后追加目标标签，避免多标签并存导致拖拽无效
           replaceColumnTag(l, this.plugin.settings.columns, column.tag)

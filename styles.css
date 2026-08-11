@@ -224,6 +224,36 @@
   color: var(--text-on-accent);
 }
 
+/* 子任务进度徽章与进度条（面板 + 内嵌看板共用） */
+.journal-dashboard .jd-progress-badge,
+.jd-daily-board .jd-db-progress-badge {
+  flex: 0 0 auto;
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  background: var(--background-modifier-hover);
+  padding: 0 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.journal-dashboard .jd-progress,
+.jd-daily-board .jd-db-progress {
+  flex: 0 0 40px;
+  height: 4px;
+  background: var(--background-modifier-border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: auto 0;
+}
+
+.journal-dashboard .jd-progress-fill,
+.jd-daily-board .jd-db-progress-fill {
+  height: 100%;
+  background: var(--interactive-accent);
+  border-radius: 2px;
+  transition: width 0.2s ease;
+}
+
 .journal-dashboard .jd-card-item-text {
   flex: 1 1 auto;
   font-size: var(--font-ui-small);

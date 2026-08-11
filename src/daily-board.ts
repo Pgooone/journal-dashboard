@@ -19,21 +19,31 @@ interface DailyTask {
   tags: string[];
   done: boolean;
   section: string;
+  /** 子任务进度：已完成 / 总数（无子任务为 0/0） */
+  progress: [number, number];
 }
 
-/** 解析文件的根任务（直接读文件，保证实时最新；嵌套子任务与空任务不显示） */
+/** 解析文件的根任务（含子任务进度；嵌套子任务与空任务不单独显示） */
 async function collectTasks(app: App, file: TFile): Promise<DailyTask[]> {
   const content = await app.vault.read(file);
-  return parseTasks(content)
+  const all = parseTasks(content);
+  const lineDone = new Map<number, boolean>();
+  for (const t of all) lineDone.set(t.line, t.done);
+  return all
     .filter((t) => t.root && !t.empty)
-    .map((t) => ({
-      file,
-      line: t.line,
-      text: t.text,
-      tags: t.tags,
-      done: t.done,
-      section: t.section,
-    }));
+    .map((t) => {
+      const total = t.childLines.length;
+      const done = t.childLines.filter((l) => lineDone.get(l)).length;
+      return {
+        file,
+        line: t.line,
+        text: t.text,
+        tags: t.tags,
+        done: t.done,
+        section: t.section,
+        progress: [done, total] as [number, number],
+      };
+    });
 }
 
 /** 剥离任务行中的 checkbox 标记与列标签，得到显示文本 */
@@ -201,6 +211,22 @@ function renderItem(
   });
   item.appendChild(box);
   item.appendChild(document.createTextNode(displayText(t.text, plugin)));
+
+  // 子任务进度徽章 + 进度条
+  const [pDone, pTotal] = t.progress;
+  if (pTotal > 0) {
+    const badge = document.createElement("span");
+    badge.className = "jd-db-progress-badge";
+    badge.textContent = `${pDone}/${pTotal}`;
+    item.appendChild(badge);
+    const bar = document.createElement("div");
+    bar.className = "jd-db-progress";
+    const fill = document.createElement("div");
+    fill.className = "jd-db-progress-fill";
+    fill.style.width = `${Math.round((pDone / pTotal) * 100)}%`;
+    bar.appendChild(fill);
+    item.appendChild(bar);
+  }
   return item;
 }
 

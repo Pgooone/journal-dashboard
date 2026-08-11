@@ -96,6 +96,17 @@ tags:
 - [x] 已完成的任务 #今天
 - [ ] 以后再说 #later
 - [ ] 多标签任务 #今天 #明天（应归今天，优先级）
+- [ ] 项目推进（5/10）#今天
+  - [x] 子任务1
+  - [x] 子任务2
+  - [x] 子任务3
+  - [x] 子任务4
+  - [x] 子任务5
+  - [ ] 子任务6
+  - [ ] 子任务7
+  - [ ] 子任务8
+  - [ ] 子任务9
+  - [ ] 子任务10
 
 ## 📥 随手记
 -
@@ -136,6 +147,11 @@ class StubWorkspaceLeaf {}
 class StubItemView {
   constructor(leaf) { this.leaf = leaf; this.app = leaf.app; this.contentEl = document.createElement("div"); }
   registerEvent() {} registerDomEvent() {} registerInterval() {}
+}
+/** MarkdownRenderChild stub：稳定容器 + 事件注册（registerEvent 收集到 modifyHandlers） */
+class StubMarkdownRenderChild {
+  constructor(containerEl) { this.containerEl = containerEl; }
+  registerEvent(cb) { modifyHandlers.push(cb); }
 }
 class StubSettingTab { constructor(app, plugin) { this.app = app; this.plugin = plugin; this.containerEl = document.createElement("div"); } }
 /**
@@ -241,6 +257,7 @@ let viewCreator = null;
 let activeView = null; // 当前活动 MarkdownView（光标定位测试用）
 let cursorPos = null;
 const blockHandlers = {}; // markdown 代码块处理器（registerMarkdownCodeBlockProcessor 收集）
+const modifyHandlers = []; // vault.modify 事件回调（MarkdownRenderChild.registerEvent 收集）
 
 const app = {
   vault: {
@@ -308,7 +325,7 @@ const obsidianStub = {
   Plugin: StubPlugin, Notice: StubNotice, TFile: StubTFile, TFolder: StubTFolder,
   WorkspaceLeaf: StubWorkspaceLeaf, ItemView: StubItemView,
   PluginSettingTab: StubSettingTab, Setting: StubSetting, Modal: StubModal,
-  MarkdownView: class {},
+  MarkdownView: class {}, MarkdownRenderChild: StubMarkdownRenderChild,
 };
 const origLoad = Module._load;
 Module._load = function (request, parent, isMain) {
@@ -380,8 +397,12 @@ async function main() {
   check("列标题显示完成度（今天 5/6：5 待办 + 1 已完成）", /今天 \(\d+\/\d+\)/.test(colTitleText(colByTitle["今天"])), colTitleText(colByTitle["今天"]));
   const metas = Array.from(colByTitle["今天"].querySelectorAll(".jd-card-item-meta")).map((e) => e.textContent);
   check("卡片来源显示相对日期（昨天）", metas.includes("昨天"), metas.join(","));
+  // 子任务进度（面板看板）
+  const progressCard = Array.from(colByTitle["今天"].querySelectorAll(".jd-card-item")).find((c) => c.querySelector(".jd-card-item-text")?.textContent.includes("项目推进"));
+  check("根任务卡片显示子任务进度徽章 5/10", !!progressCard?.querySelector(".jd-progress-badge") && progressCard.querySelector(".jd-progress-badge").textContent === "5/10", progressCard?.querySelector(".jd-progress-badge")?.textContent);
+  check("进度条宽度 50%", progressCard?.querySelector(".jd-progress-fill")?.style.width === "50%");
 
-  check("今天列 5 个任务", cardCount(colByTitle["今天"]) === 5, `实际 ${cardCount(colByTitle["今天"])}`);
+  check("今天列 6 个任务（含带子任务的项目推进）", cardCount(colByTitle["今天"]) === 6, `实际 ${cardCount(colByTitle["今天"])}`);
   const todayTexts = cardTexts(colByTitle["今天"]);
   check("今天列包含：写周报", todayTexts.some((t) => t.includes("写周报")));
   check("今天列包含：无标签任务（默认归今天）", todayTexts.some((t) => t.includes("无标签任务")));
@@ -555,7 +576,7 @@ async function main() {
   // 使用测试 11 创建的日记（已填写任务，无标签靠区块归属分列）
   const boardEl = document.createElement("div");
   try {
-    await blockHandlers["journal-board"]("", boardEl, { sourcePath: "日记/每日/2026-08-11.md" });
+    await blockHandlers["journal-board"]("", boardEl, { sourcePath: "日记/每日/2026-08-11.md", addChild: () => {} });
   } catch (e) {
     console.log("  [handler 异常]", e);
   }
@@ -584,7 +605,7 @@ async function main() {
   console.log("══ 测试 13：内嵌看板拖拽（换列 + 拖到已完成自动勾选） ══");
   // 重新渲染获取最新 DOM（勾选/恢复后 boardEl 已重渲染）
   boardEl.empty();
-  await blockHandlers["journal-board"]("", boardEl, { sourcePath: "日记/每日/2026-08-11.md" });
+  await blockHandlers["journal-board"]("", boardEl, { sourcePath: "日记/每日/2026-08-11.md", addChild: () => {} });
   await new Promise((r) => setTimeout(r, 50));
   const dbCols2 = Array.from(boardEl.querySelectorAll(".jd-db-col"));
   const dbToday2 = dbCols2.find((c) => (c.querySelector(".jd-db-col-title")?.textContent ?? "").startsWith("今天"));
@@ -607,7 +628,7 @@ async function main() {
   check("拖到明天列：行标签变为 #明天", movedLine.includes("#明天") && !movedLine.includes("#今天"), movedLine);
   // 拖拽：明天任务 → 已完成列（自动勾选）
   boardEl.empty();
-  await blockHandlers["journal-board"]("", boardEl, { sourcePath: "日记/每日/2026-08-11.md" });
+  await blockHandlers["journal-board"]("", boardEl, { sourcePath: "日记/每日/2026-08-11.md", addChild: () => {} });
   await new Promise((r) => setTimeout(r, 50));
   const dbCols3 = Array.from(boardEl.querySelectorAll(".jd-db-col"));
   const dbTomorrow3 = dbCols3.find((c) => (c.querySelector(".jd-db-col-title")?.textContent ?? "").startsWith("明天"));
