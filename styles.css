@@ -1,0 +1,288 @@
+/* ===== 我的模板库：日记面板 ===== */
+
+.journal-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
+  overflow-y: auto;
+}
+
+.journal-dashboard .jd-card {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.journal-dashboard .jd-card-title {
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-normal);
+}
+
+.journal-dashboard .jd-today {
+  background: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 12%, var(--background-secondary));
+  border-color: color-mix(in srgb, var(--interactive-accent) 40%, transparent);
+}
+
+.journal-dashboard .jd-mood {
+  font-size: var(--font-ui-small);
+  margin: 4px 0;
+  color: var(--text-muted);
+}
+
+.journal-dashboard .jd-tasks {
+  font-size: var(--font-ui-small);
+  margin: 4px 0;
+  color: var(--text-muted);
+}
+
+.journal-dashboard .jd-empty {
+  font-size: var(--font-ui-small);
+  color: var(--text-faint);
+  padding: 6px 0;
+}
+
+.journal-dashboard .jd-btn {
+  margin-top: 8px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+}
+
+.journal-dashboard .jd-btn:hover {
+  background: var(--interactive-hover);
+}
+
+.journal-dashboard .jd-btn-primary {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+
+.journal-dashboard .jd-btn-primary:hover {
+  background: var(--interactive-accent-hover);
+}
+
+.journal-dashboard .jd-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.journal-dashboard .jd-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+}
+
+.journal-dashboard .jd-item:hover {
+  background: var(--background-modifier-hover);
+}
+
+.journal-dashboard .jd-item-date {
+  color: var(--text-normal);
+}
+
+.journal-dashboard .jd-item-meta {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.journal-dashboard .jd-item-inbox {
+  color: var(--text-muted);
+}
+
+/* ===== 看板区块 ===== */
+
+.journal-dashboard .jd-board {
+  padding: 10px 12px;
+}
+
+.journal-dashboard .jd-board-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.journal-dashboard .jd-board-title {
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.journal-dashboard .jd-board-cols {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.journal-dashboard .jd-col {
+  flex: 0 0 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-top: 3px solid var(--jd-col-color, transparent);
+  min-height: 60px;
+}
+
+.journal-dashboard .jd-col.jd-col-done {
+  border-top-color: var(--text-faint);
+}
+
+.journal-dashboard .jd-col.jd-drop-hover {
+  background: color-mix(in srgb, var(--interactive-accent) 10%, var(--background-secondary));
+  border-color: var(--interactive-accent);
+}
+
+.journal-dashboard .jd-col-title {
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  color: var(--text-normal);
+  padding: 2px 4px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.journal-dashboard .jd-col.jd-col-done .jd-col-title {
+  cursor: pointer;
+}
+
+.journal-dashboard .jd-card-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  cursor: grab;
+}
+
+.journal-dashboard .jd-card-item:hover {
+  background: var(--background-modifier-hover);
+}
+
+.journal-dashboard .jd-card-item.done {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.journal-dashboard .jd-card-item.done .jd-card-item-text {
+  text-decoration: line-through;
+}
+
+.journal-dashboard .jd-check {
+  flex: 0 0 auto;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--font-ui-medium);
+  user-select: none;
+}
+
+.journal-dashboard .jd-card-item-text {
+  flex: 1 1 auto;
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  word-break: break-word;
+  min-width: 0;
+}
+
+.journal-dashboard .jd-card-item-meta {
+  flex: 0 0 auto;
+  font-size: var(--font-smaller);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.journal-dashboard .jd-add-btn {
+  margin-top: 2px;
+  padding: 3px 8px;
+  align-self: flex-start;
+  font-size: var(--font-smaller);
+}
+
+/* ===== 设置界面 ===== */
+
+.jd-settings-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.jd-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.jd-settings-row input[type="text"] {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.jd-settings-row input[type="text"]:first-child {
+  flex: 0 0 120px;
+}
+
+.jd-settings-row .jd-col-color {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 30px;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  cursor: pointer;
+}
+
+.jd-settings-row .jd-settings-del {
+  flex: 0 0 auto;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-modifier-error);
+  color: var(--text-on-accent);
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+}
+
+.jd-settings-row .jd-settings-del:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.jd-settings-add {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px dashed var(--background-modifier-border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+}
+
+.jd-settings-add:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}

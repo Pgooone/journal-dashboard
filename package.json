@@ -1,0 +1,27 @@
+{
+  "name": "journal-dashboard",
+  "version": "1.0.0",
+  "description": "日记面板 + 模板库：看板式任务面板、一键搭建模板库、用模板创建笔记",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
+  },
+  "keywords": [
+    "obsidian",
+    "templates",
+    "journal",
+    "dashboard",
+    "kanban"
+  ],
+  "author": "小树",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.21.0",
+    "obsidian": "latest",
+    "tslib": "^2.6.0",
+    "typescript": "^5.0.0"
+  }
+}
