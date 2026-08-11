@@ -539,8 +539,31 @@ async function main() {
   check("本周日记嵌入 7 天", weekDays.length === 7, `实际 ${weekDays.length}`);
   check("周记无占位符残留", !newWeekly.includes("{{"));
 
+  console.log("══ 测试 11：模板文件优先（用户可编辑模板生效） ══");
+  // 复制真实插件模板到测试 vault → 走文件分支
+  const tplDir = path.join(TEST_ROOT, ".obsidian/plugins/journal-dashboard/templates");
+  fs.mkdirSync(tplDir, { recursive: true });
+  fs.copyFileSync(path.join(PLUGIN_DIR, "templates/TPL-日记.md"), path.join(tplDir, "TPL-日记.md"));
+  // 修改模板内容验证用户编辑生效
+  const custom = fs.readFileSync(path.join(tplDir, "TPL-日记.md"), "utf8").replace("## 🎯 今日事", "## 🎯 今日任务（用户自定义标题）");
+  fs.writeFileSync(path.join(tplDir, "TPL-日记.md"), custom);
+  fs.unlinkSync(path.join(TEST_ROOT, "日记/每日/2026-08-11.md"));
+  plugin3.executeCreateCommand("create-daily");
+  await new Promise((r) => setTimeout(r, 80));
+  const customDaily = readFile("日记/每日/2026-08-11.md");
+  check("用户修改的模板标题生效", customDaily.includes("## 🎯 今日任务（用户自定义标题）"));
+  check("文件分支渲染正常（mood 选择）", customDaily.includes("mood: 😄"));
+  check("文件分支无占位符残留", !customDaily.includes("{{"));
+  // 模拟用户在各区块填写任务内容（空任务过滤后看板只显示有内容的任务）
+  const filled = readFile("日记/每日/2026-08-11.md")
+    .replace(/-\s*\[ \]\s*\n-\s*\[ \]\s*\n-\s*\[ \]\s*\n/, "- [ ] 写周报\n- [ ] 买菜\n- [ ] 汇报\n")
+    .replace(/(## ⏭ 明天\n)-\s*\[ \]\s*\n-\s*\[ \]\s*\n/, "$1- [ ] 交报告\n- [ ] 开会\n")
+    .replace(/(## 🗓 本周\n)-\s*\[ \]\s*\n/, "$1- [ ] 周报汇总\n")
+    .replace(/(## 🗂 以后\n)-\s*\[ \]\s*\n/, "$1- [ ] 学游泳\n");
+  fs.writeFileSync(path.join(TEST_ROOT, "日记/每日/2026-08-11.md"), filled);
+
   console.log("══ 测试 12：日记内嵌看板（journal-board 代码块） ══");
-  // 使用测试 11 创建的日记（无标签任务，靠区块归属分列）
+  // 使用测试 11 创建的日记（已填写任务，无标签靠区块归属分列）
   const boardEl = document.createElement("div");
   try {
     await blockHandlers["journal-board"]("", boardEl, { sourcePath: "日记/每日/2026-08-11.md" });
@@ -609,22 +632,6 @@ async function main() {
   await new Promise((r) => setTimeout(r, 50));
   const doneLine = readFile("日记/每日/2026-08-11.md").split("\n")[dragLine];
   check("拖到已完成列：自动勾选 - [x]", /^- \[x\]/.test(doneLine), doneLine);
-
-  // ---------- 汇总 ----------
-  // 复制真实插件模板到测试 vault → 走文件分支
-  const tplDir = path.join(TEST_ROOT, ".obsidian/plugins/journal-dashboard/templates");
-  fs.mkdirSync(tplDir, { recursive: true });
-  fs.copyFileSync(path.join(PLUGIN_DIR, "templates/TPL-日记.md"), path.join(tplDir, "TPL-日记.md"));
-  // 修改模板内容验证用户编辑生效
-  const custom = fs.readFileSync(path.join(tplDir, "TPL-日记.md"), "utf8").replace("## 🎯 今日事", "## 🎯 今日任务（用户自定义标题）");
-  fs.writeFileSync(path.join(tplDir, "TPL-日记.md"), custom);
-  fs.unlinkSync(path.join(TEST_ROOT, "日记/每日/2026-08-11.md"));
-  plugin3.executeCreateCommand("create-daily");
-  await new Promise((r) => setTimeout(r, 80));
-  const customDaily = readFile("日记/每日/2026-08-11.md");
-  check("用户修改的模板标题生效", customDaily.includes("## 🎯 今日任务（用户自定义标题）"));
-  check("文件分支渲染正常（mood 选择）", customDaily.includes("mood: 😄"));
-  check("文件分支无占位符残留", !customDaily.includes("{{"));
 
   console.log("══ 测试 14：用户旅程（取消弹窗不挂起 + 分区添加任务） ══");
   // 14a：心情弹窗按 Esc 取消 → 命令继续（默认心情），不卡死

@@ -21,11 +21,11 @@ interface DailyTask {
   section: string;
 }
 
-/** 解析文件的根任务（直接读文件，保证实时最新；嵌套子任务不单独成行） */
+/** 解析文件的根任务（直接读文件，保证实时最新；嵌套子任务与空任务不显示） */
 async function collectTasks(app: App, file: TFile): Promise<DailyTask[]> {
-  const content = await app.vault.cachedRead(file);
+  const content = await app.vault.read(file);
   return parseTasks(content)
-    .filter((t) => t.root)
+    .filter((t) => t.root && !t.empty)
     .map((t) => ({
       file,
       line: t.line,
@@ -192,10 +192,11 @@ function renderItem(
     });
   }
 
-  // 勾选/取消勾选
-  const box = document.createElement("span");
+  // 勾选/取消勾选（原生勾选框，显示可靠）
+  const box = document.createElement("input");
+  box.type = "checkbox";
   box.className = "jd-db-check";
-  box.textContent = t.done ? "☑" : "☐";
+  box.checked = t.done;
   box.addEventListener("click", (e) => {
     e.stopPropagation();
     void toggleTask(app, plugin, t, rootEl, sourcePath);

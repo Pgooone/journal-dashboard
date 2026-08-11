@@ -194,9 +194,8 @@
 .journal-dashboard .jd-check {
   flex: 0 0 auto;
   cursor: pointer;
-  color: var(--text-muted);
-  font-size: var(--font-ui-medium);
-  user-select: none;
+  accent-color: var(--interactive-accent);
+  margin: 2px 0 0 0;
 }
 
 .journal-dashboard .jd-card-item-text {
@@ -383,6 +382,6 @@
 .jd-daily-board .jd-db-check {
   flex: 0 0 auto;
   cursor: pointer;
-  color: var(--text-muted);
-  user-select: none;
+  accent-color: var(--interactive-accent);
+  margin: 2px 0 0 0;
 }

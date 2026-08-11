@@ -12,6 +12,7 @@ export interface ParsedTask {
   done: boolean;
   section: string; // 所在区块标题（## 开头行，无则为 ""）
   root: boolean; // 无缩进的根任务
+  empty: boolean; // 无内容的任务行（- [ ] 后为空，模板预置填写位）
 }
 
 /** 解析 markdown 文本中的所有任务行 */
@@ -34,6 +35,7 @@ export function parseTasks(content: string): ParsedTask[] {
       done: /^[xX]$/.test(m[2]),
       section,
       root: m[1].length === 0,
+      empty: m[3].trim() === "",
     });
   }
   return out;

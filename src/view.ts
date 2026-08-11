@@ -281,9 +281,9 @@ export class DashboardView extends ItemView {
       .getMarkdownFiles()
       .filter((f) => f.path.startsWith(folder + "/") && f.path !== boardFile);
     for (const file of files) {
-      const content = await this.app.vault.cachedRead(file);
+      const content = await this.app.vault.read(file);
       for (const t of parseTasks(content)) {
-        if (!t.root) continue;
+        if (!t.root || t.empty) continue; // 空任务（模板预置填写位）不显示
         tasks.push({
           file,
           line: t.line,
@@ -406,8 +406,11 @@ export class DashboardView extends ItemView {
     card.setAttribute("data-path", task.file.path);
     card.setAttribute("data-line", String(task.line));
 
-    // checkbox：点击勾选/取消勾选，写回源文件
-    const box = this.el("span", "jd-check", task.done ? "☑" : "☐");
+    // checkbox：原生勾选框（显示可靠），点击勾选/取消勾选，写回源文件
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.className = "jd-check";
+    box.checked = task.done;
     box.addEventListener("click", (e) => {
       e.stopPropagation();
       void this.toggleTask(task);
