@@ -78,7 +78,7 @@ export const DEFAULT_SETTINGS: JournalDashboardSettings = {
   weeklyFolder: "日记/每周",
   inboxFolder: "",
   boardFile: "日记/每日/Kanban-1786411859061.md",
-  templateDir: "日记/模板",
+  templateDir: "",
   userScriptsFolder: "",
   todaySection: "## 🎯 今日事",
   columns: [
@@ -97,8 +97,8 @@ export const DEFAULT_SETTINGS: JournalDashboardSettings = {
   recentCount: 7,
   inboxCount: 5,
   commands: [
-    { id: "create-daily", name: "新建日记", template: "日记/模板/TPL-日记.md", folder: "日记/每日", filenameMode: "date" },
-    { id: "create-weekly", name: "新建周记", template: "日记/模板/TPL-周记.md", folder: "日记/每周", filenameMode: "week" },
+    { id: "create-daily", name: "新建日记", template: ".obsidian/plugins/journal-dashboard/templates/TPL-日记.md", folder: "日记/每日", filenameMode: "date" },
+    { id: "create-weekly", name: "新建周记", template: ".obsidian/plugins/journal-dashboard/templates/TPL-周记.md", folder: "日记/每周", filenameMode: "week" },
   ],
   autoSetup: true,
   forceOverwrite: false,
@@ -201,7 +201,7 @@ export class JournalDashboardSettingTab extends PluginSettingTab {
       { key: "weeklyFolder", name: "周记文件夹", desc: "「打开本周周记」跳转目标" },
       { key: "inboxFolder", name: "收件箱文件夹", desc: "收件箱速记卡片的扫描目录" },
       { key: "boardFile", name: "看板文件", desc: "「打开完整看板」跳转的 task-list-kanban 看板文件路径" },
-      { key: "templateDir", name: "模板目录", desc: "模板安装目标，也用于 Templater 配置" },
+      { key: "templateDir", name: "模板目录", desc: "留空则使用插件内置模板（.obsidian/plugins/journal-dashboard/templates）；填写自定义目录时模板安装到该目录" },
       { key: "userScriptsFolder", name: "脚本文件夹", desc: "Templater user_scripts_folder（留空则不配置脚本目录）" },
       { key: "todaySection", name: "今日事标题", desc: "新增任务追加到该标题区块下（写回定位用）" },
     ];

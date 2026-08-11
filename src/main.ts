@@ -87,6 +87,11 @@ function deriveTemplaterMappings(s: JournalDashboardSettings) {
 export default class JournalDashboardPlugin extends Plugin {
   settings: JournalDashboardSettings = DEFAULT_SETTINGS;
 
+  /** 模板目录：设置留空时使用插件内置模板目录 */
+  private templateDir(): string {
+    return this.settings.templateDir || `${this.manifest.dir}/templates`;
+  }
+
   async onload() {
     this.settings = mergeSettings(await this.loadData());
 
@@ -221,7 +226,7 @@ export default class JournalDashboardPlugin extends Plugin {
 
     // 2. 安装模板（目标已存在则跳过，不覆盖用户修改）
     for (const [name, content] of Object.entries(TEMPLATES)) {
-      const target = `${s.templateDir}/${name}`;
+      const target = `${this.templateDir()}/${name}`;
       if (!(await adapter.exists(target))) {
         await adapter.write(target, content);
         notice.push(`新建模板 ${name}`);
@@ -236,7 +241,7 @@ export default class JournalDashboardPlugin extends Plugin {
     if (templaterInstalled) {
       const data = await this.readJson(tplDataPath);
       if (s.forceOverwrite || !data.templates_folder)
-        data.templates_folder = s.templateDir;
+        data.templates_folder = this.templateDir();
       if (s.forceOverwrite || !data.trigger_on_file_creation_mode)
         data.trigger_on_file_creation_mode = "folder";
       if (s.forceOverwrite || !data.folder_templates || data.folder_templates.length === 0)
@@ -249,7 +254,7 @@ export default class JournalDashboardPlugin extends Plugin {
 
     // 4. 核心插件「模板」
     const tplCore = await this.readJson(".obsidian/templates.json");
-    if (s.forceOverwrite || !tplCore.folder) tplCore.folder = s.templateDir;
+    if (s.forceOverwrite || !tplCore.folder) tplCore.folder = this.templateDir();
     await this.writeJson(".obsidian/templates.json", tplCore);
 
     // 5. 核心插件「日记」
@@ -257,7 +262,7 @@ export default class JournalDashboardPlugin extends Plugin {
     if (s.forceOverwrite || !daily.folder) daily.folder = s.dailyFolder;
     if (s.forceOverwrite || !daily.format) daily.format = "YYYY-MM-DD";
     if (s.forceOverwrite || !daily.template)
-      daily.template = `${s.templateDir}/TPL-日记.md`;
+      daily.template = `${this.templateDir()}/TPL-日记.md`;
     await this.writeJson(".obsidian/daily-notes.json", daily);
 
     // 6. 运行时同步（立即生效，无需重启）
@@ -292,7 +297,7 @@ export default class JournalDashboardPlugin extends Plugin {
       const tp = (this.app as any).plugins.plugins["templater-obsidian"];
       if (tp && tp.settings) {
         if (!tp.settings.templates_folder)
-          tp.settings.templates_folder = this.settings.templateDir;
+          tp.settings.templates_folder = this.templateDir();
         if (!tp.settings.folder_templates || tp.settings.folder_templates.length === 0)
           tp.settings.folder_templates = deriveTemplaterMappings(this.settings);
         if (!tp.settings.user_scripts_folder)
@@ -304,14 +309,14 @@ export default class JournalDashboardPlugin extends Plugin {
         this.app as any
       ).internalPlugins.getPluginById("templates")?.instance;
       if (templates && templates.options && !templates.options.folder)
-        templates.options.folder = this.settings.templateDir;
+        templates.options.folder = this.templateDir();
       // 核心插件「日记」
       const dn = (this.app as any).internalPlugins.getPluginById("daily-notes")?.instance;
       if (dn && dn.options) {
         if (!dn.options.folder) dn.options.folder = this.settings.dailyFolder;
         if (!dn.options.format) dn.options.format = "YYYY-MM-DD";
         if (!dn.options.template)
-          dn.options.template = `${this.settings.templateDir}/TPL-日记.md`;
+          dn.options.template = `${this.templateDir()}/TPL-日记.md`;
       }
     } catch (e) {
       console.warn("[日记面板] 运行时同步失败", e);
