@@ -618,13 +618,13 @@ export class DashboardView extends ItemView {
         matchTags: [],
       }));
     const settings = {
+      columns: cols,
       scope: "folder",
       uncategorizedVisibility: "auto",
-      doneVisibility: "always",
       uncategorizedColumnName:
         this.plugin.settings.columns.find((c) => c.key === this.plugin.settings.defaultColumnKey)?.label ?? "今天",
+      doneVisibility: "always",
       doneColumnName: "已完成",
-      columns: cols,
     };
     return `---\nkanban_plugin: ${JSON.stringify(settings)}\n---\n\n`;
   }

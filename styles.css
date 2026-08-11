@@ -422,13 +422,16 @@
 
 /* ===== 日记内嵌看板（```journal-board 代码块） ===== */
 
-/* Obsidian 正文容器默认有 max-width 居中收窄，让含看板的代码块容器铺满宽度 */
+/* 解除 Obsidian 正文容器 max-width 居中收窄，让看板铺满宽度（多列均分） */
 .markdown-preview-sizer .jd-daily-board,
 .markdown-preview-view .jd-daily-board,
-div.jd-daily-board {
+.markdown-source-view .jd-daily-board,
+div.jd-daily-board,
+.jd-daily-board {
   width: 100% !important;
   max-width: 100% !important;
   margin: 10px 0;
+  box-sizing: border-box;
 }
 
 .jd-daily-board .jd-db-cols {
@@ -436,11 +439,18 @@ div.jd-daily-board {
   gap: 10px;
   overflow-x: auto;
   padding-bottom: 4px;
+  width: 100%;
+}
+
+/* 编辑视图（CodeMirror）的代码块容器可能受编辑器布局收窄，
+   隐藏其中的内嵌看板（看板只在阅读/实时预览视图渲染展示） */
+.cm-preview-code-block .jd-daily-board {
+  display: none !important;
 }
 
 .jd-daily-board .jd-db-col {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 1 0%;
+  min-width: 140px;
   padding: 8px 10px;
   border-radius: 8px;
   background: var(--background-secondary);
