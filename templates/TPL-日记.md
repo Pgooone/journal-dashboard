@@ -1,7 +1,8 @@
 ---
 date: {{date}}
 weekday: {{weekday}}
-week: {{week}}
+week: {{week_range_full}}
+created: {{time}}
 type: daily
 mood: {{mood}}
 tags:

@@ -1,6 +1,6 @@
 ---
 type: weekly
-week: {{week}}
+week: {{week_range_full}}
 range: {{week_range}}
 tags:
   - weekly

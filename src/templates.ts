@@ -10,7 +10,8 @@ export const TEMPLATES: Record<string, string> = {
   "TPL-日记.md": `---
 date: {{date}}
 weekday: {{weekday}}
-week: {{week}}
+week: {{week_range_full}}
+created: {{time}}
 type: daily
 mood: {{mood}}
 tags:
@@ -48,7 +49,7 @@ tags:
 
   "TPL-周记.md": `---
 type: weekly
-week: {{week}}
+week: {{week_range_full}}
 range: {{week_range}}
 tags:
   - weekly

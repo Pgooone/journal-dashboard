@@ -77,6 +77,7 @@ interface RenderContext {
   weekday: string;
   week: string;
   weekRange: string;
+  weekRangeFull: string; // YYYY-MM-DD ~ YYYY-MM-DD（日记/周记 week 字段用）
   prev: string;
   next: string;
   prevWeek: string;
@@ -285,11 +286,10 @@ export default class JournalDashboardPlugin extends Plugin {
     const monday = new Date(now.getTime() - ((now.getDay() || 7) - 1) * dayMs);
     const sunday = new Date(monday.getTime() + 6 * dayMs);
     const mmdd = (d: Date) => formatDate(d, "MM-DD");
+    const yyyymmdd = (d: Date) => formatDate(d, "YYYY-MM-DD");
     const weekDays: string[] = [];
     for (let i = 0; i < 7; i++) {
-      weekDays.push(
-        `![[${formatDate(new Date(monday.getTime() + i * dayMs), "YYYY-MM-DD")}]]`
-      );
+      weekDays.push(`![[${yyyymmdd(new Date(monday.getTime() + i * dayMs))}]]`);
     }
     return {
       date,
@@ -297,6 +297,7 @@ export default class JournalDashboardPlugin extends Plugin {
       weekday: now.toLocaleDateString("zh-CN", { weekday: "long" }),
       week,
       weekRange: `${mmdd(monday)} ~ ${mmdd(sunday)}`,
+      weekRangeFull: `${yyyymmdd(monday)} ~ ${yyyymmdd(sunday)}`,
       prev,
       next,
       prevWeek: isoWeek(new Date(now.getTime() - 7 * dayMs)),
@@ -337,6 +338,7 @@ export default class JournalDashboardPlugin extends Plugin {
       ["{{weekday}}", ctx.weekday],
       ["{{week}}", ctx.week],
       ["{{week_range}}", ctx.weekRange],
+      ["{{week_range_full}}", ctx.weekRangeFull],
       ["{{prev}}", ctx.prev],
       ["{{next}}", ctx.next],
       ["{{prev_week}}", ctx.prevWeek],

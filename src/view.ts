@@ -168,7 +168,7 @@ export class DashboardView extends ItemView {
     await this.renderBoard(root);
 
     const today = formatDate(new Date(), "YYYY-MM-DD");
-    const thisWeek = this.weekOf(new Date());
+    const thisWeek = this.weekRangeFull(new Date());
     const dailies = this.collectDailies();
     const todayMeta = dailies.find((d) => d.date === today);
 
@@ -204,7 +204,8 @@ export class DashboardView extends ItemView {
       weekCard.appendChild(this.el("div", "jd-card-title", `📅 本周 ${thisWeek}`));
       const weekFiles = dailies.filter((d) => d.week === thisWeek);
       const weekBtn = this.el("button", "jd-btn", "打开本周周记");
-      weekBtn.addEventListener("click", () => this.openWeekly(thisWeek));
+      // 周记文件名用 ISO 周（2026-W33.md），匹配用日期范围
+      weekBtn.addEventListener("click", () => this.openWeekly(this.weekOf(new Date())));
       weekCard.appendChild(weekBtn);
       if (weekFiles.length > 0) {
         const weekSummary = this.el(
@@ -335,12 +336,16 @@ export class DashboardView extends ItemView {
     if (!this.plugin.settings.showBoard) return;
     const board = this.el("div", "jd-card jd-board");
 
-    // 标题栏 + 打开完整看板入口
+    // 标题栏 + （可选）打开完整看板入口：task-list-kanban 启用时才显示，
+    // 未启用时面板看板即完整看板（内置勾选/拖拽/进度/完成度，无需外部依赖）
     const header = this.el("div", "jd-board-header");
     header.appendChild(this.el("div", "jd-board-title", "📋 任务看板"));
-    const openBtn = this.el("button", "jd-btn", "打开完整看板");
-    openBtn.addEventListener("click", () => void this.openFullBoard());
-    header.appendChild(openBtn);
+    const kanbanPlugin = (this.app as any).plugins?.plugins?.["task-list-kanban"];
+    if (kanbanPlugin) {
+      const openBtn = this.el("button", "jd-btn", "打开完整看板");
+      openBtn.addEventListener("click", () => void this.openFullBoard());
+      header.appendChild(openBtn);
+    }
     board.appendChild(header);
 
     // 快速新增（内联输入 + 选择列；回车提交，Esc 取消）
@@ -657,5 +662,14 @@ export class DashboardView extends ItemView {
       ((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7
     );
     return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+  }
+
+  /** 本周日期范围（YYYY-MM-DD ~ YYYY-MM-DD），与日记 frontmatter 的 week 字段一致 */
+  private weekRangeFull(d: Date): string {
+    const dayMs = 86400000;
+    const monday = new Date(d.getTime() - ((d.getDay() || 7) - 1) * dayMs);
+    const sunday = new Date(monday.getTime() + 6 * dayMs);
+    const fmt = (x: Date) => formatDate(x, "YYYY-MM-DD");
+    return `${fmt(monday)} ~ ${fmt(sunday)}`;
   }
 }

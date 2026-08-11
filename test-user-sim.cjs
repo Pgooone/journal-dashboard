@@ -316,6 +316,7 @@ const app = {
       "templater-obsidian": {
         templater: { create_new_note_from_template: async () => { openedFiles.push("CREATE_NOTE"); } },
       },
+      "task-list-kanban": { manifest: { version: "2.13.0" } }, // 模拟启用（"打开完整看板"按钮显示）
     },
   },
   internalPlugins: { getPluginById: () => null },
@@ -521,8 +522,9 @@ async function main() {
   check("日记文件已创建", fs.existsSync(path.join(TEST_ROOT, "日记/每日/2026-08-11.md")));
   check("frontmatter date 渲染", newDaily.includes("date: 2026-08-11"));
   check("frontmatter weekday 渲染（星期二）", newDaily.includes("weekday: 星期二"));
-  check("frontmatter week 渲染格式", /week: \d{4}-W\d{2}/.test(newDaily));
+  check("frontmatter week 渲染日期范围", /week: \d{4}-\d{2}-\d{2} ~ \d{4}-\d{2}-\d{2}/.test(newDaily));
   check("mood 渲染（选择器第一个选项 😄）", newDaily.includes("mood: 😄"));
+  check("created 写入创建时间（HH:mm）", /created: \d{2}:\d{2}/.test(newDaily));
   check("无占位符残留", !newDaily.includes("{{"), newDaily.slice(0, 120));
   check("模板无任何列标签（无需手动打 #）", !newDaily.includes("#今天") && !newDaily.includes("#明天") && !newDaily.includes("#本周") && !newDaily.includes("#以后"));
   check("模板含分区区块（## ⏭ 明天 / 🗓 本周 / 🗂 以后）", newDaily.includes("## ⏭ 明天") && newDaily.includes("## 🗓 本周") && newDaily.includes("## 🗂 以后"));
@@ -543,7 +545,7 @@ async function main() {
   const weeklyFiles = fs.readdirSync(path.join(TEST_ROOT, "日记/每周")).filter((f) => f.endsWith(".md"));
   check("周记文件已创建（ISO 周命名）", weeklyFiles.length === 1 && /^\d{4}-W\d{2}\.md$/.test(weeklyFiles[0]), weeklyFiles.join(","));
   const newWeekly = readFile(`日记/每周/${weeklyFiles[0]}`);
-  check("周记 week 渲染", /week: \d{4}-W\d{2}/.test(newWeekly));
+  check("周记 week 渲染日期范围", /week: \d{4}-\d{2}-\d{2} ~ \d{4}-\d{2}-\d{2}/.test(newWeekly));
   check("周记 range 渲染（MM-DD ~ MM-DD）", /range: \d{2}-\d{2} ~ \d{2}-\d{2}/.test(newWeekly));
   const weekDays = newWeekly.match(/!\[\[(\d{4}-\d{2}-\d{2})\]\]/g) ?? [];
   check("本周日记嵌入 7 天", weekDays.length === 7, `实际 ${weekDays.length}`);
