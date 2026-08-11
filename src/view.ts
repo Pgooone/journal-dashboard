@@ -406,11 +406,9 @@ export class DashboardView extends ItemView {
     card.setAttribute("data-path", task.file.path);
     card.setAttribute("data-line", String(task.line));
 
-    // checkbox：原生勾选框（显示可靠），点击勾选/取消勾选，写回源文件
-    const box = document.createElement("input");
-    box.type = "checkbox";
-    box.className = "jd-check";
-    box.checked = task.done;
+    // checkbox：自绘勾选框（CSS 绘制，不受 Obsidian 预览样式影响），点击勾选/取消勾选写回
+    const box = document.createElement("span");
+    box.className = "jd-check" + (task.done ? " checked" : "");
     box.addEventListener("click", (e) => {
       e.stopPropagation();
       void this.toggleTask(task);

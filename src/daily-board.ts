@@ -192,11 +192,9 @@ function renderItem(
     });
   }
 
-  // 勾选/取消勾选（原生勾选框，显示可靠）
-  const box = document.createElement("input");
-  box.type = "checkbox";
-  box.className = "jd-db-check";
-  box.checked = t.done;
+  // 勾选/取消勾选（自绘勾选框，CSS 绘制不受 Obsidian 预览样式影响）
+  const box = document.createElement("span");
+  box.className = "jd-db-check" + (t.done ? " checked" : "");
   box.addEventListener("click", (e) => {
     e.stopPropagation();
     void toggleTask(app, plugin, t, rootEl, sourcePath);
