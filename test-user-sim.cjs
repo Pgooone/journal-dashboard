@@ -505,13 +505,14 @@ async function main() {
   check("无占位符残留", !newDaily.includes("{{"), newDaily.slice(0, 120));
   check("模板无任何列标签（无需手动打 #）", !newDaily.includes("#今天") && !newDaily.includes("#明天") && !newDaily.includes("#本周") && !newDaily.includes("#以后"));
   check("模板含分区区块（## ⏭ 明天 / 🗓 本周 / 🗂 以后）", newDaily.includes("## ⏭ 明天") && newDaily.includes("## 🗓 本周") && newDaily.includes("## 🗂 以后"));
+  check("任务行保留尾空格（统一渲染为勾选框）", newDaily.split("\n").filter((l) => /^- \[ \]/.test(l)).every((l) => l.endsWith(" ")), newDaily.split("\n").filter((l) => /^-\s*\[ \]/.test(l)).map((l) => JSON.stringify(l)).join(" | "));
   check("内嵌看板代码块在文件末尾（复盘之后）", newDaily.indexOf("```journal-board") > newDaily.indexOf("## 🌙 晚间复盘"));
   check("{{cursor}} 已移除", !newDaily.includes("{{cursor}}"));
   check("互链渲染 [[prev]] [[next]]", /<< \[\[2026-08-10\]\] \| \[\[2026-08-12\]\] >>/.test(newDaily));
   check("创建后打开文件", openedFiles.some((f) => f.path === "日记/每日/2026-08-11.md"));
   const cursorLine = cursorPos ? cursorPos[0] : -1;
   const cursorLineText = newDaily.split("\n")[cursorLine] ?? "";
-  check("光标定位到今日事下方空行（col 0）", cursorPos?.[1] === 0, `line ${cursorLine} col ${cursorPos?.[1]}: "${cursorLineText}"`);
+  check("光标定位到首个任务内容处（col 6，'- [ ] ' 后）", cursorPos?.[1] === 6 && /^- \[ \]/.test(cursorLineText), `line ${cursorLine} col ${cursorPos?.[1]}: "${cursorLineText}"`);
 
   console.log("══ 测试 10：新建周记（自主渲染） ══");
   fs.mkdirSync(path.join(TEST_ROOT, "日记/每周"), { recursive: true });
@@ -542,12 +543,12 @@ async function main() {
   check("用户修改的模板标题生效", customDaily.includes("## 🎯 今日任务（用户自定义标题）"));
   check("文件分支渲染正常（mood 选择）", customDaily.includes("mood: 😄"));
   check("文件分支无占位符残留", !customDaily.includes("{{"));
-  // 模拟用户在各区块填写任务内容（模板区块下为空行，直接填写）
+  // 模拟用户在各区块填写任务内容（模板任务行均带尾空格，直接在 [ ] 后填内容）
   const filled = readFile("日记/每日/2026-08-11.md")
-    .replace(/## 🎯 今日任务（用户自定义标题）\n\n/, "## 🎯 今日任务（用户自定义标题）\n- [ ] 写周报\n- [ ] 买菜\n- [ ] 汇报\n")
-    .replace(/## ⏭ 明天\n\n/, "## ⏭ 明天\n- [ ] 交报告\n- [ ] 开会\n")
-    .replace(/## 🗓 本周\n\n/, "## 🗓 本周\n- [ ] 周报汇总\n")
-    .replace(/## 🗂 以后\n\n/, "## 🗂 以后\n- [ ] 学游泳\n");
+    .replace(/(## 🎯 今日任务（用户自定义标题）\n)(-\s*\[ \]\s*\n)(-\s*\[ \]\s*\n)(-\s*\[ \]\s*\n)/, "$1- [ ] 写周报\n- [ ] 买菜\n- [ ] 汇报\n")
+    .replace(/(## ⏭ 明天\n)(-\s*\[ \]\s*\n)(-\s*\[ \]\s*\n)/, "$1- [ ] 交报告\n- [ ] 开会\n")
+    .replace(/(## 🗓 本周\n)(-\s*\[ \]\s*\n)/, "$1- [ ] 周报汇总\n")
+    .replace(/(## 🗂 以后\n)(-\s*\[ \]\s*\n)/, "$1- [ ] 学游泳\n");
   fs.writeFileSync(path.join(TEST_ROOT, "日记/每日/2026-08-11.md"), filled);
 
   console.log("══ 测试 12：日记内嵌看板（journal-board 代码块） ══");

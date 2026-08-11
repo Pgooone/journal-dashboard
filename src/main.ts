@@ -348,6 +348,9 @@ export default class JournalDashboardPlugin extends Plugin {
       content = content.split("{{author}}").join(author);
     }
 
+    // 统一任务行尾空格（- [ ] / - [x] 后补一个空格），保证 Obsidian 预览一致渲染为勾选框
+    content = content.replace(/^[ \t]*-[ \t]*\[([ xX])\][ \t]*$/gm, (_m, s: string) => `- [${s}] `);
+
     let cursor: { line: number; col: number } | null = null;
     const idx = content.indexOf("{{cursor}}");
     if (idx !== -1) {
@@ -356,7 +359,9 @@ export default class JournalDashboardPlugin extends Plugin {
         line: before.split("\n").length - 1,
         col: before.length - before.lastIndexOf("\n") - 1,
       };
-      content = content.replace("{{cursor}}", "");
+      // 保留行尾空格（如 "- [ ] {{cursor}}" → "- [ ] "），
+      // 否则任务行无尾空格会被 Obsidian 预览渲染为普通列表
+      content = content.replace("{{cursor}}", " ");
     }
     return { content, cursor };
   }
