@@ -1,10 +1,14 @@
 import { App, TFile } from "obsidian";
 import type JournalDashboardPlugin from "./main";
-import { extractTags } from "./settings";
+import { extractTags, replaceColumnTag } from "./settings";
 
 /**
  * 日记内嵌看板：通过 markdown 代码块（```journal-board）在日记阅读视图中
- * 渲染当前文件的任务看板（按列分组、可勾选写回）。
+ * 渲染当前文件的任务看板。
+ * - 任务按列分组（今天/明天/本周/以后 + 已完成），无标签默认归默认列
+ * - 点击 ☐ 勾选/取消勾选，写回日记文件
+ * - 拖拽卡片到时间列 → 自动改写标签；拖到已完成列 → 自动勾选完成
+ * - 列标题显示完成度（待办/总数），与面板总看板规则一致
  */
 
 interface DailyTask {
@@ -48,7 +52,7 @@ function displayText(text: string, plugin: JournalDashboardPlugin): string {
   return t.trim() || "（待填写）";
 }
 
-/** 渲染日记内嵌看板（当前文件的任务按列显示，可勾选写回） */
+/** 渲染日记内嵌看板（当前文件的任务按列显示） */
 export async function renderDailyBoard(
   app: App,
   plugin: JournalDashboardPlugin,
@@ -59,50 +63,109 @@ export async function renderDailyBoard(
   if (!(file instanceof TFile)) return;
   const tasks = await collectTasks(app, file);
 
-  // 分列（标签匹配；无标签 → 默认列；已完成独立）
+  // 分列：已完成也计算归属列（列完成度一致）；无标签 → 默认列
   const cols = plugin.settings.columns.map((c) => ({
     ...c,
     pending: [] as DailyTask[],
+    total: 0,
   }));
   const done: DailyTask[] = [];
   const defKey = plugin.settings.defaultColumnKey;
   for (const t of tasks) {
-    if (t.done) {
-      done.push(t);
-      continue;
-    }
     const all = t.tags.map((x) => x.toLowerCase());
     const hit = cols.find((c) => c.tags.some((m) => all.includes(m.toLowerCase())));
     const target = hit ?? cols.find((c) => c.key === defKey) ?? cols[0];
-    if (target) target.pending.push(t);
+    if (!target) continue;
+    target.total++;
+    if (t.done) done.push(t);
+    else target.pending.push(t);
   }
 
-  // 渲染（紧凑列式布局）
+  // 渲染
   el.empty();
   el.addClass("jd-daily-board");
   const row = el.createDiv({ cls: "jd-db-cols" });
+
+  // 时间列：支持拖入换列（改写标签）
   for (const col of cols) {
     const colEl = row.createDiv({ cls: "jd-db-col" });
     colEl.style.setProperty("--jd-col-color", col.color);
     colEl.createDiv({
       cls: "jd-db-col-title",
-      text: `${col.label} (${col.pending.length})`,
+      text: `${col.label} (${col.pending.length}/${col.total})`,
+    });
+    attachDrop(app, plugin, colEl, el, sourcePath, (file, line) => {
+      const tag = col.tags[0] ?? "#" + col.key;
+      return rewriteLine(app, file, line, (l) =>
+        replaceColumnTag(l, plugin.settings.columns, tag)
+      );
     });
     if (col.pending.length === 0) {
       colEl.createDiv({ cls: "jd-db-empty", text: "无" });
     } else {
-      for (const t of col.pending) {
-        colEl.appendChild(renderItem(app, plugin, t, el, sourcePath));
-      }
+      for (const t of col.pending) colEl.appendChild(renderItem(app, plugin, t, el, sourcePath));
     }
   }
+
+  // 已完成列：支持拖入自动勾选
   const doneEl = row.createDiv({ cls: "jd-db-col jd-db-done" });
   doneEl.createDiv({ cls: "jd-db-col-title", text: `✓ 已完成 (${done.length})` });
+  attachDrop(app, plugin, doneEl, el, sourcePath, (file, line) =>
+    rewriteLine(app, file, line, (l) =>
+      l.replace(/-\s*\[([ xX])\]/, (_m, b: string) => (b === " " ? "- [x]" : "- [ ]"))
+    )
+  );
   if (done.length === 0) {
     doneEl.createDiv({ cls: "jd-db-empty", text: "无" });
   } else {
     for (const t of done) doneEl.appendChild(renderItem(app, plugin, t, el, sourcePath));
   }
+}
+
+/** 列拖放处理：解析 payload 后执行写回并重渲染 */
+function attachDrop(
+  app: App,
+  plugin: JournalDashboardPlugin,
+  colEl: HTMLElement,
+  rootEl: HTMLElement,
+  sourcePath: string,
+  apply: (file: TFile, line: number) => Promise<void>
+) {
+  colEl.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    colEl.addClass("jd-drop-hover");
+  });
+  colEl.addEventListener("dragleave", () => {
+    colEl.removeClass("jd-drop-hover");
+  });
+  colEl.addEventListener("drop", (e) => {
+    e.preventDefault();
+    colEl.removeClass("jd-drop-hover");
+    const payload = e.dataTransfer?.getData("text/plain");
+    if (!payload) return;
+    const [path, lineStr] = payload.split("::");
+    const file = app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) return;
+    const line = parseInt(lineStr, 10);
+    if (Number.isNaN(line)) return;
+    void apply(file, line).then(() => renderDailyBoard(app, plugin, rootEl, sourcePath));
+  });
+}
+
+/** 原子读改写指定行 */
+async function rewriteLine(
+  app: App,
+  file: TFile,
+  line: number,
+  updater: (lineText: string) => string
+): Promise<void> {
+  await app.vault.process(file, (data) => {
+    const lines = data.split("\n");
+    if (line >= 0 && line < lines.length) {
+      lines[line] = updater(lines[line]);
+    }
+    return lines.join("\n");
+  });
 }
 
 function renderItem(
@@ -114,6 +177,22 @@ function renderItem(
 ): HTMLElement {
   const item = document.createElement("div");
   item.className = "jd-db-item" + (t.done ? " done" : "");
+  item.draggable = !t.done;
+
+  // 拖拽源：记录 文件路径::行号
+  if (!t.done) {
+    item.addEventListener("dragstart", (e) => {
+      e.dataTransfer?.setData("text/plain", `${t.file.path}::${t.line}`);
+      if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+    });
+    item.addEventListener("dragend", () => {
+      document
+        .querySelectorAll(".jd-drop-hover")
+        .forEach((el) => el.removeClass("jd-drop-hover"));
+    });
+  }
+
+  // 勾选/取消勾选
   const box = document.createElement("span");
   box.className = "jd-db-check";
   box.textContent = t.done ? "☑" : "☐";
@@ -134,15 +213,11 @@ async function toggleTask(
   rootEl: HTMLElement,
   sourcePath: string
 ) {
-  await app.vault.process(t.file, (data) => {
-    const lines = data.split("\n");
-    if (t.line >= 0 && t.line < lines.length) {
-      lines[t.line] = lines[t.line].replace(
-        /(-\s*\[)([ xX])(\])/,
-        (_m, a: string, b: string, c: string) => `${a}${b === " " ? "x" : " "}${c}`
-      );
-    }
-    return lines.join("\n");
-  });
+  await rewriteLine(app, t.file, t.line, (l) =>
+    l.replace(
+      /(-\s*\[)([ xX])(\])/,
+      (_m, a: string, b: string, c: string) => `${a}${b === " " ? "x" : " "}${c}`
+    )
+  );
   await renderDailyBoard(app, plugin, rootEl, sourcePath);
 }

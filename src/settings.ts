@@ -72,6 +72,29 @@ export function extractTags(text: string): string[] {
   return text.match(/#[\p{L}\p{N}_/-]+/gu) ?? [];
 }
 
+/**
+ * 拖拽换列写回：先移除任务行中的全部列标签（含目标列），
+ * 再追加目标列标签。避免出现 #今天 #明天 并存导致拖拽无效。
+ */
+export function replaceColumnTag(
+  line: string,
+  columns: { tags: string[] }[],
+  tag: string
+): string {
+  const allTags = columns
+    .flatMap((c) => c.tags)
+    .map((t) => escapeRe(t.slice(1)))
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+  if (allTags.length === 0) return `${line} ${tag}`;
+  const stripRe = new RegExp(
+    `[ \\t]*#(?:${allTags.join("|")})(?![\\p{L}\\p{N}_/\\-])`,
+    "g"
+  );
+  const cleaned = line.replace(stripRe, "").trimEnd();
+  return `${cleaned} ${tag}`;
+}
+
 function isFilenameMode(v: unknown): v is FilenameMode {
   return typeof v === "string" && (FILENAME_MODES as readonly string[]).includes(v);
 }

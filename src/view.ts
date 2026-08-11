@@ -1,6 +1,6 @@
 import { ItemView, Notice, WorkspaceLeaf, TFile } from "obsidian";
 import type JournalDashboardPlugin from "./main";
-import { escapeRe, extractTags } from "./settings";
+import { escapeRe, extractTags, replaceColumnTag } from "./settings";
 
 // 注意：不能与旧插件 my-template-library 的 viewType 相同，
 // Obsidian 对重复注册直接抛错导致插件加载失败
@@ -449,20 +449,10 @@ export class DashboardView extends ItemView {
       if (!(file instanceof TFile)) return;
       const line = parseInt(lineStr, 10);
       if (Number.isNaN(line)) return;
-      void this.modifyTaskLine({ file, line, text: "", tags: [], done: false }, (l) => {
-        // 每次新建非全局正则，避免 lastIndex 状态污染；
-        // 负向断言只替换完整标签 token，防止 #本周 误替 #本周五 的前缀
-        const matchTags = column.match
-          .map((t) => escapeRe(t.slice(1)))
-          .filter(Boolean)
-          .sort((a, b) => b.length - a.length);
-        if (matchTags.length === 0) return `${l} ${column.tag}`;
-        const tagRe = new RegExp(
-          `#(?:${matchTags.join("|")})(?![\\p{L}\\p{N}_/\\-])`,
-          "u"
-        );
-        return tagRe.test(l) ? l.replace(tagRe, column.tag) : `${l} ${column.tag}`;
-      });
+      void this.modifyTaskLine({ file, line, text: "", tags: [], done: false }, (l) =>
+        // 移除全部列标签后追加目标标签，避免多标签并存导致拖拽无效
+        replaceColumnTag(l, this.plugin.settings.columns, column.tag)
+      );
     });
   }
 
