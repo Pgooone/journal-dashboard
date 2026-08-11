@@ -1,14 +1,14 @@
 ---
 type: book
-author: <% await tp.system.prompt("作者") %>
+author: {{author}}
 status: 在读
-rating: <% await tp.system.suggester((i) => i, ["", "★★★★★", "★★★★☆", "★★★☆☆", "★★☆☆☆", "★☆☆☆☆"], false, "评分") %>
-started: <% tp.date.now("YYYY-MM-DD") %>
+rating: {{rating}}
+started: {{date}}
 tags:
   - book
 ---
 
-# <% tp.file.title %>
+# {{title}}
 
 ## 一句话总结
 

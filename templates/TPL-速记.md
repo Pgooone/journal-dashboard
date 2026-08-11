@@ -1,10 +1,10 @@
 ---
-created: <% tp.date.now("YYYY-MM-DD HH:mm") %>
+created: {{date}} {{time}}
 type: fleeting
 tags:
   - inbox
 ---
 
-<% tp.file.cursor() %>
+{{cursor}}
 
-来源：[[<% tp.date.now("YYYY-MM-DD") %>]]
+来源：[[{{date}}]]

@@ -1,33 +1,26 @@
 // 内嵌模板内容 —— 发布版的唯一模板来源
-// 插件在 90 Templates 中缺少对应文件时，会把这些内容安装过去（不覆盖已有文件）
+// 模板使用简单占位符语法，由插件自主渲染（不依赖 Templater）：
+//   {{date}} {{time}} {{weekday}} {{week}} {{week_range}} {{title}}
+//   {{prev}} {{next}} {{prev_week}} {{next_week}} {{week_days}}
+//   {{mood}} {{subject}} {{author}} {{status}} {{rating}}（交互占位符，渲染时弹窗）
+//   {{cursor}}（光标定位标记）
+// 插件在模板目录缺少对应文件时，会把这些内容安装过去（不覆盖已有文件）
 
 export const TEMPLATES: Record<string, string> = {
-  "TPL-日记.md": `<%*
-// 用选择器而不是手打，保证 mood 取值统一，Dataview / Bases 才能聚合
-const mood = await tp.system.suggester(
-  ["😄 很好", "🙂 还行", "😐 一般", "😪 疲惫", "😣 糟糕"],
-  ["😄", "🙂", "😐", "😪", "😣"],
-  false,
-  "今天心情如何？"
-);
-const day  = tp.date.now("YYYY-MM-DD", 0, tp.file.title, "YYYY-MM-DD");
-const prev = tp.date.now("YYYY-MM-DD", -1, tp.file.title, "YYYY-MM-DD");
-const next = tp.date.now("YYYY-MM-DD", 1, tp.file.title, "YYYY-MM-DD");
--%>
----
-date: <% day %>
-weekday: <% tp.date.now("dddd", 0, tp.file.title, "YYYY-MM-DD") %>
-week: <% tp.date.now("gggg-[W]ww", 0, tp.file.title, "YYYY-MM-DD") %>
+  "TPL-日记.md": `---
+date: {{date}}
+weekday: {{weekday}}
+week: {{week}}
 type: daily
-mood: <% mood %>
+mood: {{mood}}
 tags:
   - daily
 ---
 
-<< [[<% prev %>]] | [[<% next %>]] >>
+<< [[{{prev}}]] | [[{{next}}]] >>
 
 ## 🎯 今日事
-- [ ] <% tp.file.cursor(1) %> #今天
+- [ ] {{cursor}} #今天
 - [ ] #今天
 - [ ] #今天
 
@@ -41,21 +34,16 @@ tags:
 
   "TPL-周记.md": `---
 type: weekly
-week: <% tp.date.now("gggg-[W]ww", 0, tp.file.title, "gggg-[W]ww") %>
-range: <% tp.date.weekday("MM-DD", 0, tp.file.title, "gggg-[W]ww") %> ~ <% tp.date.weekday("MM-DD", 6, tp.file.title, "gggg-[W]ww") %>
+week: {{week}}
+range: {{week_range}}
 tags:
   - weekly
 ---
 
-<< [[<% tp.date.now("gggg-[W]ww", -7, tp.file.title, "gggg-[W]ww") %>]] | [[<% tp.date.now("gggg-[W]ww", 7, tp.file.title, "gggg-[W]ww") %>]] >>
+<< [[{{prev_week}}]] | [[{{next_week}}]] >>
 
 ## 📅 本周日记
-<%*
-for (let i = 0; i < 7; i++) {
-  const d = tp.date.weekday("YYYY-MM-DD", i, tp.file.title, "gggg-[W]ww");
-  tR += \`![[\${d}]]\n\`;
-}
--%>
+{{week_days}}
 
 ## ✅ 本周完成
 
@@ -66,27 +54,22 @@ for (let i = 0; i < 7; i++) {
 ## 🎯 下周三件事
 - [ ] `,
 
-  "TPL-会议.md": `<%*
-const subject = await tp.system.prompt("会议主题", "未命名会议");
-const stamp = tp.date.now("YYYY-MM-DD");
-await tp.file.rename(\`\${stamp} \${subject}\`);
--%>
----
+  "TPL-会议.md": `---
 type: meeting
-date: <% tp.date.now("YYYY-MM-DD HH:mm") %>
+date: {{date}} {{time}}
 attendees:
 project:
 tags:
   - meeting
 ---
 
-# <% subject %>
+# {{subject}}
 
 ## 议程
 -
 
 ## 记录
-- <% tp.file.cursor(1) %>
+- {{cursor}}
 
 ## 决议
 -
@@ -96,14 +79,14 @@ tags:
 
   "TPL-项目.md": `---
 type: project
-status: <% await tp.system.suggester(["未开始","进行中","暂停","已完成"],["10-todo","50-doing","70-hold","90-done"], false, "项目状态") %>
-start: <% tp.date.now("YYYY-MM-DD") %>
+status: {{status}}
+start: {{date}}
 due:
 tags:
   - project
 ---
 
-# <% tp.file.title %>
+# {{title}}
 
 ## 目标与验收标准
 -
@@ -112,22 +95,22 @@ tags:
 - [ ]
 
 ## 日志
-- <% tp.date.now("YYYY-MM-DD") %> 创建
+- {{date}} 创建
 
 ## 相关笔记
 - `,
 
   "TPL-读书.md": `---
 type: book
-author: <% await tp.system.prompt("作者") %>
+author: {{author}}
 status: 在读
-rating: <% await tp.system.suggester((i) => i, ["", "★★★★★", "★★★★☆", "★★★☆☆", "★★☆☆☆", "★☆☆☆☆"], false, "评分") %>
-started: <% tp.date.now("YYYY-MM-DD") %>
+rating: {{rating}}
+started: {{date}}
 tags:
   - book
 ---
 
-# <% tp.file.title %>
+# {{title}}
 
 ## 一句话总结
 
@@ -136,13 +119,13 @@ tags:
 ## 我的评论`,
 
   "TPL-速记.md": `---
-created: <% tp.date.now("YYYY-MM-DD HH:mm") %>
+created: {{date}} {{time}}
 type: fleeting
 tags:
   - inbox
 ---
 
-<% tp.file.cursor() %>
+{{cursor}}
 
-来源：[[<% tp.date.now("YYYY-MM-DD") %>]]`,
+来源：[[{{date}}]]`,
 };

@@ -118,6 +118,28 @@ class StubItemView {
   registerEvent() {} registerDomEvent() {} registerInterval() {}
 }
 class StubSettingTab { constructor(app, plugin) { this.app = app; this.plugin = plugin; this.containerEl = document.createElement("div"); } }
+/**
+ * 选择弹窗 stub：模拟 Obsidian Modal（构造函数只接收 app，
+ * 选项按钮的 click 监听在 contentEl.createEl 时收集）。
+ * open() 时自动触发第一个选项按钮（模拟用户点击第一项）。
+ */
+class StubModal {
+  constructor(app) { this.app = app; this._clicks = []; }
+  setTitle() {}
+  open() { setTimeout(() => this._clicks[0]?.(), 0); }
+  close() {}
+  get contentEl() {
+    const modal = this;
+    return {
+      createEl: (tag, opts) => {
+        const el = document.createElement(tag);
+        el.textContent = opts?.text ?? "";
+        el.addEventListener = (ev, fn) => { if (ev === "click") modal._clicks.push(fn); };
+        return el;
+      },
+    };
+  }
+}
 class StubSetting {
   constructor(containerEl) {
     this.el = document.createElement("div");
@@ -185,6 +207,8 @@ function parseListItems(md) {
 const openedFiles = [];
 let leafView = null;
 let viewCreator = null;
+let activeView = null; // 当前活动 MarkdownView（光标定位测试用）
+let cursorPos = null;
 
 const app = {
   vault: {
@@ -195,8 +219,17 @@ const app = {
     },
     getMarkdownFiles: () =>
       walkMd(TEST_ROOT, "").map((p) => new StubTFile(p, path.basename(p, ".md"))),
-    getAbstractFileByPath: (p) =>
-      fs.existsSync(path.join(TEST_ROOT, p)) ? new StubTFile(p, path.basename(p, ".md")) : null,
+    getAbstractFileByPath: (p) => {
+      const abs = path.join(TEST_ROOT, p);
+      if (!fs.existsSync(abs)) return null;
+      return fs.statSync(abs).isDirectory() ? new StubTFolder() : new StubTFile(p, path.basename(p, ".md"));
+    },
+    read: async (f) => fs.readFileSync(path.join(TEST_ROOT, f.path), "utf8"),
+    create: async (p, content) => {
+      fs.mkdirSync(path.dirname(path.join(TEST_ROOT, p)), { recursive: true });
+      fs.writeFileSync(path.join(TEST_ROOT, p), content);
+      return new StubTFile(p, path.basename(p, ".md"));
+    },
     cachedRead: async (f) => fs.readFileSync(path.join(TEST_ROOT, f.path), "utf8"),
     process: async (f, fn) => {
       const abs = path.join(TEST_ROOT, f.path);
@@ -217,7 +250,16 @@ const app = {
     getLeavesOfType: () => (leafView ? [{ app, view: leafView }] : []),
     getRightLeaf: () => ({ app, view: null, setViewState: async (s) => { if (viewCreator) { leafView = viewCreator({ app }); await leafView.onOpen?.(); } } }),
     revealLeaf: () => {},
-    getLeaf: () => ({ openFile: (f) => openedFiles.push(f) }),
+    getLeaf: () => ({
+      openFile: async (f) => {
+        openedFiles.push(f);
+        activeView = {
+          file: f,
+          editor: { setCursor: (l, c) => { cursorPos = [l, c]; } },
+        };
+      },
+    }),
+    getActiveViewOfType: () => activeView,
   },
   commands: { commands: {}, removeCommand: () => {}, executeCommandById: () => {} },
   plugins: {
@@ -233,7 +275,8 @@ const app = {
 const obsidianStub = {
   Plugin: StubPlugin, Notice: StubNotice, TFile: StubTFile, TFolder: StubTFolder,
   WorkspaceLeaf: StubWorkspaceLeaf, ItemView: StubItemView,
-  PluginSettingTab: StubSettingTab, Setting: StubSetting,
+  PluginSettingTab: StubSettingTab, Setting: StubSetting, Modal: StubModal,
+  MarkdownView: class {},
 };
 const origLoad = Module._load;
 Module._load = function (request, parent, isMain) {
@@ -423,6 +466,56 @@ async function main() {
   const openBoardBtn = Array.from(root.querySelectorAll(".jd-board-header button")).find((b) => b.textContent.includes("打开完整看板"));
   openBoardBtn.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
   check("点击打开完整看板 → 打开看板文件", openedFiles.some((f) => f.path === "日记/每日/Kanban-1786411859061.md"), JSON.stringify(openedFiles));
+
+  console.log("══ 测试 9：新建日记（插件自主渲染，内嵌模板回退） ══");
+  // 测试 vault 没有插件模板文件 → 走内嵌 TEMPLATES 回退
+  fs.rmSync(path.join(TEST_ROOT, "日记/每日/2026-08-11.md"), { force: true });
+  plugin3.executeCreateCommand("create-daily");
+  await new Promise((r) => setTimeout(r, 80));
+  const newDaily = readFile("日记/每日/2026-08-11.md");
+  check("日记文件已创建", fs.existsSync(path.join(TEST_ROOT, "日记/每日/2026-08-11.md")));
+  check("frontmatter date 渲染", newDaily.includes("date: 2026-08-11"));
+  check("frontmatter weekday 渲染（星期二）", newDaily.includes("weekday: 星期二"));
+  check("frontmatter week 渲染格式", /week: \d{4}-W\d{2}/.test(newDaily));
+  check("mood 渲染（选择器第一个选项 😄）", newDaily.includes("mood: 😄"));
+  check("无占位符残留", !newDaily.includes("{{"), newDaily.slice(0, 120));
+  check("今日事含 3 个 #今天 任务", (newDaily.match(/#今天/g) ?? []).length === 3);
+  check("{{cursor}} 已移除", !newDaily.includes("{{cursor}}"));
+  check("互链渲染 [[prev]] [[next]]", /<< \[\[2026-08-10\]\] \| \[\[2026-08-12\]\] >>/.test(newDaily));
+  check("创建后打开文件", openedFiles.some((f) => f.path === "日记/每日/2026-08-11.md"));
+  const cursorLine = cursorPos ? cursorPos[0] : -1;
+  const cursorLineText = newDaily.split("\n")[cursorLine] ?? "";
+  check("光标定位到首个任务内容处", /^- \[ \]  #今天$/.test(cursorLineText), `line ${cursorLine}: "${cursorLineText}"`);
+
+  console.log("══ 测试 10：新建周记（自主渲染） ══");
+  fs.mkdirSync(path.join(TEST_ROOT, "日记/每周"), { recursive: true });
+  openedFiles.length = 0;
+  plugin3.executeCreateCommand("create-weekly");
+  await new Promise((r) => setTimeout(r, 80));
+  const weeklyFiles = fs.readdirSync(path.join(TEST_ROOT, "日记/每周")).filter((f) => f.endsWith(".md"));
+  check("周记文件已创建（ISO 周命名）", weeklyFiles.length === 1 && /^\d{4}-W\d{2}\.md$/.test(weeklyFiles[0]), weeklyFiles.join(","));
+  const newWeekly = readFile(`日记/每周/${weeklyFiles[0]}`);
+  check("周记 week 渲染", /week: \d{4}-W\d{2}/.test(newWeekly));
+  check("周记 range 渲染（MM-DD ~ MM-DD）", /range: \d{2}-\d{2} ~ \d{2}-\d{2}/.test(newWeekly));
+  const weekDays = newWeekly.match(/!\[\[(\d{4}-\d{2}-\d{2})\]\]/g) ?? [];
+  check("本周日记嵌入 7 天", weekDays.length === 7, `实际 ${weekDays.length}`);
+  check("周记无占位符残留", !newWeekly.includes("{{"));
+
+  console.log("══ 测试 11：模板文件优先（用户可编辑模板生效） ══");
+  // 复制真实插件模板到测试 vault → 走文件分支
+  const tplDir = path.join(TEST_ROOT, ".obsidian/plugins/journal-dashboard/templates");
+  fs.mkdirSync(tplDir, { recursive: true });
+  fs.copyFileSync(path.join(PLUGIN_DIR, "templates/TPL-日记.md"), path.join(tplDir, "TPL-日记.md"));
+  // 修改模板内容验证用户编辑生效
+  const custom = fs.readFileSync(path.join(tplDir, "TPL-日记.md"), "utf8").replace("## 🎯 今日事", "## 🎯 今日任务（用户自定义标题）");
+  fs.writeFileSync(path.join(tplDir, "TPL-日记.md"), custom);
+  fs.rmSync(path.join(TEST_ROOT, "日记/每日/2026-08-11.md"), { force: true });
+  plugin3.executeCreateCommand("create-daily");
+  await new Promise((r) => setTimeout(r, 80));
+  const customDaily = readFile("日记/每日/2026-08-11.md");
+  check("用户修改的模板标题生效", customDaily.includes("## 🎯 今日任务（用户自定义标题）"));
+  check("文件分支渲染正常（mood 选择）", customDaily.includes("mood: 😄"));
+  check("文件分支无占位符残留", !customDaily.includes("{{"));
 
   // ---------- 汇总 ----------
   console.log(`\n════ 结果：${pass} 通过 / ${fail} 失败 ════`);

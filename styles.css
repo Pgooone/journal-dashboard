@@ -286,3 +286,24 @@
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
+
+/* ===== 模板选择弹窗（心情/状态/评分） ===== */
+
+.jd-modal-option {
+  display: block;
+  width: 100%;
+  margin: 6px 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+  cursor: pointer;
+  text-align: left;
+}
+
+.jd-modal-option:hover {
+  background: var(--interactive-hover);
+  border-color: var(--interactive-accent);
+}
