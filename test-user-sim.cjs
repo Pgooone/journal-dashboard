@@ -626,9 +626,14 @@ async function main() {
   dropEvt13.dataTransfer = { setData: () => {}, getData: () => `日记/每日/2026-08-11.md::${dragLine}` };
   dbTomorrow2.dispatchEvent(dropEvt13);
   await new Promise((r) => setTimeout(r, 50));
-  const movedLine = readFile("日记/每日/2026-08-11.md").split("\n")[dragLine];
-  check("拖到明天列：行标签变为 #明天", movedLine.includes("#明天") && !movedLine.includes("#今天"), movedLine);
-  // 拖拽：明天任务 → 已完成列（自动勾选）
+  // 物理移动后：写周报 行应在 ## ⏭ 明天 区块之后，且无列标签（区块归属接管）
+  const afterMove = readFile("日记/每日/2026-08-11.md").split("\n");
+  const tmrIdx = afterMove.findIndex((l) => l.startsWith("## ⏭ 明天"));
+  const wbIdx = afterMove.findIndex((l) => l.includes("写周报"));
+  check("拖到明天列：任务行物理移动到明天区块", wbIdx > tmrIdx, `wbIdx=${wbIdx} tmrIdx=${tmrIdx}`);
+  check("移动后任务行去除列标签", !afterMove[wbIdx]?.includes("#明天") && !afterMove[wbIdx]?.includes("#今天"), afterMove[wbIdx]);
+  // 拖拽：明天任务 → 已完成列（自动勾选，重新定位写周报行号）
+  const movedDragLine = afterMove.findIndex((l) => l.includes("写周报"));
   boardEl.empty();
   await blockHandlers["journal-board"]("", boardEl, { sourcePath: "日记/每日/2026-08-11.md", addChild: () => {} });
   await new Promise((r) => setTimeout(r, 50));
@@ -639,10 +644,10 @@ async function main() {
   dragEvt14.dataTransfer = dt13;
   dbTomorrow3.querySelector(".jd-db-item").dispatchEvent(dragEvt14);
   const dropEvt14 = new dom.window.Event("drop", { bubbles: true, cancelable: true });
-  dropEvt14.dataTransfer = { setData: () => {}, getData: () => `日记/每日/2026-08-11.md::${dragLine}` };
+  dropEvt14.dataTransfer = { setData: () => {}, getData: () => `日记/每日/2026-08-11.md::${movedDragLine}` };
   dbDone3.dispatchEvent(dropEvt14);
   await new Promise((r) => setTimeout(r, 50));
-  const doneLine = readFile("日记/每日/2026-08-11.md").split("\n")[dragLine];
+  const doneLine = readFile("日记/每日/2026-08-11.md").split("\n")[movedDragLine];
   check("拖到已完成列：自动勾选 - [x]", /^- \[x\]/.test(doneLine), doneLine);
 
   console.log("══ 测试 15：内嵌看板子任务展开（勾选子任务更新根进度） ══");

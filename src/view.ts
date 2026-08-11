@@ -421,6 +421,12 @@ export class DashboardView extends ItemView {
         )
       );
       this.attachDrop(colEl, col);
+      // 今天列：一键把全部未完成任务移到明天（未做完顺延）
+      if (col.key === this.defaultColKey && colTasks.length > 0) {
+        const moveBtn = this.el("button", "jd-btn jd-col-move", "全部→明天");
+        moveBtn.addEventListener("click", () => void this.moveAllToTomorrow(colTasks));
+        colEl.appendChild(moveBtn);
+      }
       for (const t of colTasks) colEl.appendChild(this.renderCard(t));
       colsEl.appendChild(colEl);
     }
@@ -552,6 +558,32 @@ export class DashboardView extends ItemView {
   }
 
   /** 新增任务：写入今日日记对应区块末尾（内容来自看板内联输入框） */
+  /** 一键顺延：把今天列全部未完成任务标为 #明天（归入明天列） */
+  private async moveAllToTomorrow(tasks: BoardTask[]) {
+    if (tasks.length === 0) return;
+    const target = this.cols.find((c) => c.key === "tomorrow") ?? this.cols[0];
+    // 按文件分组，一次 process 写回一个文件
+    const byFile = new Map<TFile, number[]>();
+    for (const t of tasks) {
+      const list = byFile.get(t.file) ?? [];
+      list.push(t.line);
+      byFile.set(t.file, list);
+    }
+    for (const [file, lines] of byFile) {
+      await this.app.vault.process(file, (data) => {
+        const all = data.split("\n");
+        for (const ln of lines) {
+          if (ln >= 0 && ln < all.length) {
+            all[ln] = replaceColumnTag(all[ln], this.plugin.settings.columns, target.tag);
+          }
+        }
+        return all.join("\n");
+      });
+    }
+    new Notice(`已把 ${tasks.length} 个任务顺延到明天`);
+    await this.render();
+  }
+
   private async addTask(column: BoardColumn, text: string) {
     if (!text || !text.trim()) return;
     const today = formatDate(new Date(), "YYYY-MM-DD");

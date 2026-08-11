@@ -111,10 +111,9 @@ export async function renderDailyBoard(
       text: `${col.label} (${col.pending.length}/${col.total})`,
     });
     attachDrop(app, plugin, colEl, el, sourcePath, (file, line) => {
-      const tag = col.tags[0] ?? "#" + col.key;
-      return rewriteLine(app, file, line, (l) =>
-        replaceColumnTag(l, plugin.settings.columns, tag)
-      );
+      // 物理移动：把任务行（含缩进子任务）剪切到目标区块（如 ## ⏭ 明天）
+      const tagName = col.tags[0]?.replace(/^#/, "") ?? col.label;
+      return moveTaskToSection(app, plugin, file, line, tagName);
     });
     if (col.pending.length === 0) {
       colEl.createDiv({ cls: "jd-db-empty", text: "无" });
@@ -180,6 +179,65 @@ async function rewriteLine(
     if (line >= 0 && line < lines.length) {
       lines[line] = updater(lines[line]);
     }
+    return lines.join("\n");
+  });
+}
+
+/**
+ * 拖拽换列 = 物理移动：把任务行（含缩进子任务）剪切到目标区块
+ * （如 ## ⏭ 明天）末尾，并去除列标签（区块归属接管）。
+ * 目标区块不存在时回退为标签替换。
+ */
+async function moveTaskToSection(
+  app: App,
+  plugin: JournalDashboardPlugin,
+  file: TFile,
+  line: number,
+  tagName: string
+): Promise<void> {
+  await app.vault.process(file, (data) => {
+    const lines = data.split("\n");
+    if (line < 0 || line >= lines.length) return data;
+
+    // 找目标区块标题（标题含列名，如 ## ⏭ 明天）
+    let titleIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (/^##\s+/.test(lines[i]) && lines[i].includes(tagName)) {
+        titleIdx = i;
+        break;
+      }
+    }
+    if (titleIdx === -1) {
+      // 无目标区块：回退为标签替换（任务仍按标签归列）
+      const tag = plugin.settings.columns.find((c) => c.tags[0]?.replace(/^#/, "") === tagName)?.tags[0] ?? `#${tagName}`;
+      lines[line] = replaceColumnTag(lines[line], plugin.settings.columns, tag);
+      return lines.join("\n");
+    }
+
+    // 目标插入位置：区块内最后一行（下一个 ## 标题前）
+    let insertAt = titleIdx;
+    for (let i = titleIdx + 1; i < lines.length; i++) {
+      if (/^##\s+/.test(lines[i])) break;
+      insertAt = i;
+    }
+
+    // 收集源任务块：根任务 + 其后连续缩进的子任务
+    let blockEnd = line;
+    for (let i = line + 1; i < lines.length; i++) {
+      const l = lines[i];
+      if (/^\s+-\s*\[/.test(l)) blockEnd = i; // 缩进子任务
+      else if (/^-\s*\[/.test(l)) break; // 新的根任务
+      else if (l.trim() !== "") break; // 非任务内容
+    }
+    const block = lines.slice(line, blockEnd + 1);
+    // 根任务去除列标签（子任务行标签不动），区块归属接管
+    block[0] = replaceColumnTag(block[0], plugin.settings.columns, "");
+
+    // 删除源块；若目标位置在源块之后需偏移行号
+    lines.splice(line, block.length);
+    let target = insertAt;
+    if (target >= line) target -= block.length;
+    lines.splice(target + 1, 0, ...block);
     return lines.join("\n");
   });
 }

@@ -333,6 +333,22 @@
   flex: 0 0 auto;
 }
 
+/* 今天列「全部→明天」顺延按钮 */
+.journal-dashboard .jd-col-move {
+  margin-top: 4px;
+  padding: 2px 8px;
+  align-self: flex-start;
+  font-size: var(--font-smaller);
+  background: transparent;
+  border-color: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+.journal-dashboard .jd-col-move:hover {
+  background: var(--interactive-hover);
+  color: var(--text-normal);
+}
+
 /* ===== 设置界面 ===== */
 
 .jd-settings-columns {
