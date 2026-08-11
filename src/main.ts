@@ -234,14 +234,15 @@ export default class JournalDashboardPlugin extends Plugin {
     }
 
     // 3. Templater 配置（默认仅填空缺项，保留用户已有配置；forceOverwrite 时直接写）
+    // 注意：templates_folder 不写入——插件模板位于 .obsidian 下，
+    // Templater 模板选择器无法索引该目录，写入会导致「插入模板」空列表。
+    // 仅配置 folder_templates（新建文件自动套模板，按路径直接解析）。
     const tplDataPath = ".obsidian/plugins/templater-obsidian/data.json";
     const templaterInstalled = await adapter.exists(
       ".obsidian/plugins/templater-obsidian/manifest.json"
     );
     if (templaterInstalled) {
       const data = await this.readJson(tplDataPath);
-      if (s.forceOverwrite || !data.templates_folder)
-        data.templates_folder = this.templateDir();
       if (s.forceOverwrite || !data.trigger_on_file_creation_mode)
         data.trigger_on_file_creation_mode = "folder";
       if (s.forceOverwrite || !data.folder_templates || data.folder_templates.length === 0)
@@ -252,12 +253,7 @@ export default class JournalDashboardPlugin extends Plugin {
       notice.push("写入 Templater 文件夹模板映射");
     }
 
-    // 4. 核心插件「模板」
-    const tplCore = await this.readJson(".obsidian/templates.json");
-    if (s.forceOverwrite || !tplCore.folder) tplCore.folder = this.templateDir();
-    await this.writeJson(".obsidian/templates.json", tplCore);
-
-    // 5. 核心插件「日记」
+    // 4. 核心插件「日记」
     const daily = await this.readJson(".obsidian/daily-notes.json");
     if (s.forceOverwrite || !daily.folder) daily.folder = s.dailyFolder;
     if (s.forceOverwrite || !daily.format) daily.format = "YYYY-MM-DD";
@@ -296,20 +292,13 @@ export default class JournalDashboardPlugin extends Plugin {
       // Templater（已启用时同步内存设置）
       const tp = (this.app as any).plugins.plugins["templater-obsidian"];
       if (tp && tp.settings) {
-        if (!tp.settings.templates_folder)
-          tp.settings.templates_folder = this.templateDir();
+        // 不写 templates_folder（插件模板位于 .obsidian，选择器无法索引）
         if (!tp.settings.folder_templates || tp.settings.folder_templates.length === 0)
           tp.settings.folder_templates = deriveTemplaterMappings(this.settings);
         if (!tp.settings.user_scripts_folder)
           tp.settings.user_scripts_folder = this.settings.userScriptsFolder;
         if (typeof tp.saveSettings === "function") tp.saveSettings();
       }
-      // 核心插件「模板」
-      const templates = (
-        this.app as any
-      ).internalPlugins.getPluginById("templates")?.instance;
-      if (templates && templates.options && !templates.options.folder)
-        templates.options.folder = this.templateDir();
       // 核心插件「日记」
       const dn = (this.app as any).internalPlugins.getPluginById("daily-notes")?.instance;
       if (dn && dn.options) {

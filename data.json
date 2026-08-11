@@ -1,0 +1,71 @@
+{
+  "dailyFolder": "日记/每日",
+  "weeklyFolder": "日记/每周",
+  "inboxFolder": "",
+  "boardFile": "日记/每日/Kanban-1786411859061.md",
+  "templateDir": "",
+  "userScriptsFolder": "",
+  "todaySection": "## 🎯 今日事",
+  "columns": [
+    {
+      "key": "today",
+      "label": "今天",
+      "tags": [
+        "#今天"
+      ],
+      "color": "#FF5733"
+    },
+    {
+      "key": "tomorrow",
+      "label": "明天",
+      "tags": [
+        "#明天"
+      ],
+      "color": "#FFA500"
+    },
+    {
+      "key": "thisweek",
+      "label": "本周",
+      "tags": [
+        "#本周"
+      ],
+      "color": "#4A90D9"
+    },
+    {
+      "key": "later",
+      "label": "以后",
+      "tags": [
+        "#以后",
+        "#later"
+      ],
+      "color": "#8E8E93"
+    }
+  ],
+  "defaultColumnKey": "today",
+  "showBoard": true,
+  "doneCollapsed": true,
+  "showTodayCard": true,
+  "showWeekCard": true,
+  "showRecentCard": true,
+  "showInboxCard": false,
+  "recentCount": 7,
+  "inboxCount": 5,
+  "commands": [
+    {
+      "id": "create-daily",
+      "name": "新建日记",
+      "template": ".obsidian/plugins/journal-dashboard/templates/TPL-日记.md",
+      "folder": "日记/每日",
+      "filenameMode": "date"
+    },
+    {
+      "id": "create-weekly",
+      "name": "新建周记",
+      "template": ".obsidian/plugins/journal-dashboard/templates/TPL-周记.md",
+      "folder": "日记/每周",
+      "filenameMode": "week"
+    }
+  ],
+  "autoSetup": true,
+  "forceOverwrite": true
+}
