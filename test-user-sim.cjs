@@ -650,6 +650,30 @@ async function main() {
   const doneLine = readFile("日记/每日/2026-08-11.md").split("\n")[movedDragLine];
   check("拖到已完成列：自动勾选 - [x]", /^- \[x\]/.test(doneLine), doneLine);
 
+  console.log("══ 测试 16：反向拖拽（明天 → 今天，物理移回今日事区块） ══");
+  // 用明天区块的「交报告」任务（未完成），从明天列拖回今天列
+  boardEl.empty();
+  await blockHandlers["journal-board"]("", boardEl, { sourcePath: "日记/每日/2026-08-11.md", addChild: () => {} });
+  await new Promise((r) => setTimeout(r, 50));
+  const dbCols16 = Array.from(boardEl.querySelectorAll(".jd-db-col"));
+  const dbTomorrow16 = dbCols16.find((c) => (c.querySelector(".jd-db-col-title")?.textContent ?? "").startsWith("明天"));
+  const dbToday16 = dbCols16.find((c) => (c.querySelector(".jd-db-col-title")?.textContent ?? "").startsWith("今天"));
+  const wbLine16 = readFile("日记/每日/2026-08-11.md").split("\n").findIndex((l) => l.includes("交报告"));
+  check("交报告当前在明天列且未完成", !!dbTomorrow16?.querySelector(".jd-db-item") && wbLine16 !== -1);
+  // 拖回今天列
+  const dragEvt16 = new dom.window.Event("dragstart", { bubbles: true, cancelable: true });
+  dragEvt16.dataTransfer = dt13;
+  dbTomorrow16.querySelector(".jd-db-item").dispatchEvent(dragEvt16);
+  const dropEvt16 = new dom.window.Event("drop", { bubbles: true, cancelable: true });
+  dropEvt16.dataTransfer = { setData: () => {}, getData: () => `日记/每日/2026-08-11.md::${wbLine16}` };
+  dbToday16.dispatchEvent(dropEvt16);
+  await new Promise((r) => setTimeout(r, 50));
+  const afterBack = readFile("日记/每日/2026-08-11.md").split("\n");
+  const todayIdx16 = afterBack.findIndex((l) => l.startsWith("## 🎯 今日事"));
+  const wbBackIdx = afterBack.findIndex((l) => l.includes("交报告"));
+  check("拖回今天列：任务物理移回今日事区块", wbBackIdx > todayIdx16 && wbBackIdx < afterBack.findIndex((l) => l.startsWith("## ⏭ 明天")), `wbIdx=${wbBackIdx}`);
+  check("移回后不残留 #今天 标签", !afterBack[wbBackIdx]?.includes("#今天"), afterBack[wbBackIdx]);
+
   console.log("══ 测试 15：内嵌看板子任务展开（勾选子任务更新根进度） ══");
   // 在 08-10 日记（含 5/10 子任务的根任务）渲染内嵌看板
   const dbEl15 = document.createElement("div");

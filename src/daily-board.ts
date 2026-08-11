@@ -113,7 +113,14 @@ export async function renderDailyBoard(
     attachDrop(app, plugin, colEl, el, sourcePath, (file, line) => {
       // 物理移动：把任务行（含缩进子任务）剪切到目标区块（如 ## ⏭ 明天）
       const tagName = col.tags[0]?.replace(/^#/, "") ?? col.label;
-      return moveTaskToSection(app, plugin, file, line, tagName);
+      return moveTaskToSection(
+        app,
+        plugin,
+        file,
+        line,
+        tagName,
+        col.key === plugin.settings.defaultColumnKey
+      );
     });
     if (col.pending.length === 0) {
       colEl.createDiv({ cls: "jd-db-empty", text: "无" });
@@ -186,25 +193,34 @@ async function rewriteLine(
 /**
  * 拖拽换列 = 物理移动：把任务行（含缩进子任务）剪切到目标区块
  * （如 ## ⏭ 明天）末尾，并去除列标签（区块归属接管）。
- * 目标区块不存在时回退为标签替换。
+ * 今天列（默认列）匹配「## 🎯 今日事」区块；目标区块不存在时回退为标签替换。
  */
 async function moveTaskToSection(
   app: App,
   plugin: JournalDashboardPlugin,
   file: TFile,
   line: number,
-  tagName: string
+  tagName: string,
+  isTodayCol: boolean
 ): Promise<void> {
   await app.vault.process(file, (data) => {
     const lines = data.split("\n");
     if (line < 0 || line >= lines.length) return data;
 
-    // 找目标区块标题（标题含列名，如 ## ⏭ 明天）
+    // 找目标区块标题：今天列匹配「今日」标题（todaySection 前缀或含"今日"，
+    // 兼容用户自定义标题如「## 🎯 今日任务」），其他列匹配标题含列名（如 ## ⏭ 明天）
     let titleIdx = -1;
     for (let i = 0; i < lines.length; i++) {
-      if (/^##\s+/.test(lines[i]) && lines[i].includes(tagName)) {
-        titleIdx = i;
-        break;
+      if (/^##\s+/.test(lines[i])) {
+        const match =
+          isTodayCol
+            ? lines[i].trim().startsWith(plugin.settings.todaySection) ||
+              lines[i].includes("今日")
+            : lines[i].includes(tagName);
+        if (match) {
+          titleIdx = i;
+          break;
+        }
       }
     }
     if (titleIdx === -1) {
