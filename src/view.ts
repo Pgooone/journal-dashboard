@@ -1,6 +1,6 @@
 import { ItemView, Notice, WorkspaceLeaf, TFile } from "obsidian";
 import type JournalDashboardPlugin from "./main";
-import { escapeRe } from "./settings";
+import { escapeRe, extractTags } from "./settings";
 
 // 注意：不能与旧插件 my-template-library 的 viewType 相同，
 // Obsidian 对重复注册直接抛错导致插件加载失败
@@ -36,9 +36,18 @@ interface BoardTask {
   done: boolean;
 }
 
-/** 从行文本提取标签（Obsidian 标签语法，中文/字母/数字/_/-// 均可） */
-function extractTags(text: string): string[] {
-  return text.match(/#[\p{L}\p{N}_/-]+/gu) ?? [];
+/** 来源日期友好显示：今天/昨天/前天/MM-DD */
+function formatSourceDate(basename: string): string {
+  const m = basename.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return basename;
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  const now = new Date();
+  const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((start(now) - start(d)) / 86400000);
+  if (diff === 0) return "今天";
+  if (diff === 1) return "昨天";
+  if (diff === 2) return "前天";
+  return `${m[2]}-${m[3]}`;
 }
 
 interface DailyMeta {
@@ -290,17 +299,22 @@ export class DashboardView extends ItemView {
     return tasks;
   }
 
-  /** 任务归列：已完成 → done；按列数组顺序匹配标签；无标签 → 默认列 */
+  /** 任务归列：已完成也计算归属列（用于列完成度统计）；按列数组顺序匹配标签；无标签 → 默认列 */
   private classifyTask(t: BoardTask): { column: BoardColumn; done: boolean } {
-    if (t.done) return { column: this.cols[0], done: true };
     const all = t.tags.map((x) => x.toLowerCase());
     for (const col of this.cols) {
       if (col.match.some((m) => all.includes(m.toLowerCase()))) {
-        return { column: col, done: false };
+        return { column: col, done: t.done };
       }
     }
     const def = this.cols.find((c) => c.key === this.defaultColKey) ?? this.cols[0];
-    return { column: def, done: false };
+    return { column: def, done: t.done };
+  }
+
+  /** 任务来源日期数值（用于列内排序，新→旧） */
+  private dateValue(t: BoardTask): number {
+    const m = t.file.basename.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? new Date(+m[1], +m[2] - 1, +m[3]).getTime() : 0;
   }
 
   private async renderBoard(root: HTMLElement) {
@@ -315,26 +329,39 @@ export class DashboardView extends ItemView {
     header.appendChild(openBtn);
     board.appendChild(header);
 
-    // 分桶
+    // 分桶：未完成任务按列、已完成入已完成列；每列统计总数（含已完成）用于完成度
     const tasks = await this.collectBoardTasks();
     const buckets = new Map<string, BoardTask[]>();
-    for (const col of this.cols) buckets.set(col.key, []);
-    buckets.set("done", []);
+    const totals = new Map<string, number>();
+    for (const col of this.cols) {
+      buckets.set(col.key, []);
+      totals.set(col.key, 0);
+    }
+    const doneTasks: BoardTask[] = [];
     for (const t of tasks) {
       const { column, done } = this.classifyTask(t);
-      if (done) buckets.get("done")!.push(t);
+      if (done) doneTasks.push(t);
       else buckets.get(column.key)!.push(t);
+      totals.set(column.key, (totals.get(column.key) ?? 0) + 1);
     }
+    // 列内按来源日期排序（新 → 旧，今天的任务在最上）
+    for (const list of buckets.values()) list.sort((a, b) => this.dateValue(b) - this.dateValue(a));
+    doneTasks.sort((a, b) => this.dateValue(b) - this.dateValue(a));
 
     const colsEl = this.el("div", "jd-board-cols");
 
-    // 时间列
+    // 时间列（标题显示完成度：待办/总数）
     for (const col of this.cols) {
       const colTasks = buckets.get(col.key) ?? [];
+      const total = totals.get(col.key) ?? 0;
       const colEl = this.el("div", "jd-col");
       colEl.style.setProperty("--jd-col-color", col.color);
       colEl.appendChild(
-        this.el("div", "jd-col-title", `${col.label} (${colTasks.length})`)
+        this.el(
+          "div",
+          "jd-col-title",
+          `${col.label} (${colTasks.length}/${total})`
+        )
       );
       this.attachDrop(colEl, col);
       for (const t of colTasks) colEl.appendChild(this.renderCard(t));
@@ -345,7 +372,6 @@ export class DashboardView extends ItemView {
     }
 
     // 已完成列（默认收起）
-    const doneTasks = buckets.get("done") ?? [];
     const doneCol = this.el("div", "jd-col jd-col-done");
     const doneTitle = this.el(
       "div",
@@ -388,7 +414,7 @@ export class DashboardView extends ItemView {
       .trim();
     card.appendChild(this.el("span", "jd-card-item-text", display || "（待填写）"));
 
-    card.appendChild(this.el("span", "jd-card-item-meta", task.file.basename));
+    card.appendChild(this.el("span", "jd-card-item-meta", formatSourceDate(task.file.basename)));
 
     if (!task.done) {
       card.addEventListener("dragstart", (e) => {

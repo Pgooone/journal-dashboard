@@ -10,6 +10,7 @@ import {
 } from "obsidian";
 import { TEMPLATES } from "./templates";
 import { DashboardView, DASHBOARD_VIEW_TYPE } from "./view";
+import { renderDailyBoard } from "./daily-board";
 import {
   DEFAULT_SETTINGS,
   JournalDashboardSettingTab,
@@ -153,6 +154,12 @@ export default class JournalDashboardPlugin extends Plugin {
 
     // 设置界面
     this.addSettingTab(new JournalDashboardSettingTab(this.app, this));
+
+    // 日记内嵌看板：```journal-board 代码块 → 阅读视图渲染当天看板
+    // （handler 返回 Promise，Obsidian 会等待渲染完成，便于测试与错误捕获）
+    this.registerMarkdownCodeBlockProcessor("journal-board", (source, el, ctx) =>
+      renderDailyBoard(this.app, this, el, ctx.sourcePath)
+    );
 
     // 首次启用时自动搭建（幂等；可关闭）
     if (this.settings.autoSetup) {

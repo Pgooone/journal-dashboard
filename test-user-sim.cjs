@@ -21,6 +21,26 @@ proto.addClass = function (...c) { this.classList.add(...c); return this; };
 proto.removeClass = function (...c) { this.classList.remove(...c); return this; };
 proto.empty = function () { this.replaceChildren(); return this; };
 proto.toggleClass = function (c, on) { this.classList.toggle(c, on); return this; };
+proto.createDiv = function (opts) {
+  const el = document.createElement("div");
+  if (typeof opts === "string") el.className = opts;
+  else if (opts) {
+    if (opts.cls) el.className = Array.isArray(opts.cls) ? opts.cls.join(" ") : opts.cls;
+    if (opts.text !== undefined) el.textContent = opts.text;
+  }
+  this.appendChild(el); // Obsidian createDiv 自动追加到调用者
+  return el;
+};
+proto.createEl = function (tag, opts) {
+  const el = document.createElement(tag);
+  if (typeof opts === "string") el.className = opts;
+  else if (opts) {
+    if (opts.cls) el.className = Array.isArray(opts.cls) ? opts.cls.join(" ") : opts.cls;
+    if (opts.text !== undefined) el.textContent = opts.text;
+  }
+  this.appendChild(el); // Obsidian createEl 自动追加到调用者
+  return el;
+};
 // prompt stub（默认返回 null 模拟取消）
 dom.window.prompt = () => null;
 
@@ -171,6 +191,7 @@ class StubPlugin {
   addCommand() {} addRibbonIcon() {}
   registerView() {} addSettingTab() {}
   registerEvent() {} registerDomEvent() {} registerInterval() {}
+  registerMarkdownCodeBlockProcessor(lang, cb) { blockHandlers[lang] = cb; }
 }
 
 // ---------- 3. vault / app stub（指向临时目录的真实文件系统） ----------
@@ -209,6 +230,7 @@ let leafView = null;
 let viewCreator = null;
 let activeView = null; // 当前活动 MarkdownView（光标定位测试用）
 let cursorPos = null;
+const blockHandlers = {}; // markdown 代码块处理器（registerMarkdownCodeBlockProcessor 收集）
 
 const app = {
   vault: {
@@ -342,8 +364,12 @@ async function main() {
   check(`渲染 5 列（4 时间列 + 已完成）`, cols.length === 5, `实际 ${cols.length}`);
   const colByTitle = {};
   for (const c of cols) {
-    colByTitle[colTitleText(c).replace(/^\s*✓\s*/, "").replace(/\s*\(\d+\)\s*.*$/, "").trim()] = c;
+    colByTitle[colTitleText(c).replace(/^\s*✓\s*/, "").replace(/\s*\([^)]*\)\s*.*$/, "").trim()] = c;
   }
+
+  check("列标题显示完成度（今天 5/6：5 待办 + 1 已完成）", /今天 \(\d+\/\d+\)/.test(colTitleText(colByTitle["今天"])), colTitleText(colByTitle["今天"]));
+  const metas = Array.from(colByTitle["今天"].querySelectorAll(".jd-card-item-meta")).map((e) => e.textContent);
+  check("卡片来源显示相对日期（昨天）", metas.includes("昨天"), metas.join(","));
 
   check("今天列 5 个任务", cardCount(colByTitle["今天"]) === 5, `实际 ${cardCount(colByTitle["今天"])}`);
   const todayTexts = cardTexts(colByTitle["今天"]);
@@ -425,8 +451,8 @@ async function main() {
   await new Promise((r) => setTimeout(r, 30));
   const cols2 = Array.from(root.querySelectorAll(".jd-col"));
   check("新增列后渲染 6 列", cols2.length === 6, `实际 ${cols2.length}`);
-  const titles2 = cols2.map((c) => colTitleText(c).replace(/\s*\(\d+\)\s*$/, ""));
-  check("新列「下周」出现", titles2.includes("下周"));
+  const titles2 = cols2.map((c) => colTitleText(c).replace(/\s*\([^)]*\)\s*.*$/, ""));
+  check("新列「下周」出现", titles2.includes("下周"), titles2.join(","));
   // 关闭今日卡片
   plugin3.settings.showTodayCard = false;
   plugin3.refreshDashboardViews();
@@ -501,7 +527,36 @@ async function main() {
   check("本周日记嵌入 7 天", weekDays.length === 7, `实际 ${weekDays.length}`);
   check("周记无占位符残留", !newWeekly.includes("{{"));
 
-  console.log("══ 测试 11：模板文件优先（用户可编辑模板生效） ══");
+  console.log("══ 测试 12：日记内嵌看板（journal-board 代码块） ══");
+  // 使用测试 11 创建的日记（含 3 个 #今天 任务）
+  const boardEl = document.createElement("div");
+  try {
+    await blockHandlers["journal-board"]("", boardEl, { sourcePath: "日记/每日/2026-08-11.md" });
+  } catch (e) {
+    console.log("  [handler 异常]", e);
+  }
+  await new Promise((r) => setTimeout(r, 50));
+  check("内嵌看板已渲染", !!boardEl.querySelector(".jd-daily-board") || boardEl.className.includes("jd-daily-board"));
+  const dbCols = Array.from(boardEl.querySelectorAll(".jd-db-col"));
+  check("内嵌看板渲染列数（列数 + 已完成）", dbCols.length === plugin3.settings.columns.length + 1, `实际 ${dbCols.length}`);
+  check("内嵌看板包含已完成列", dbCols.some((c) => (c.querySelector(".jd-db-col-title")?.textContent ?? "").includes("已完成")));
+  const dbToday = dbCols.find((c) => (c.querySelector(".jd-db-col-title")?.textContent ?? "").startsWith("今天"));
+  check("今天列有任务", (dbToday?.querySelectorAll(".jd-db-item").length ?? 0) >= 1);
+  // 勾选写回
+  const dbBox = dbToday.querySelector(".jd-db-check");
+  const dbItemText = (dbToday.querySelector(".jd-db-item")?.textContent ?? "").replace(/^[☐☑]\s*/, "");
+  dbBox.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 50));
+  const afterCheck = readFile("日记/每日/2026-08-11.md");
+  const checkedLine = afterCheck.split("\n").find((l) => l.includes(dbItemText));
+  check("内嵌看板勾选写回日记", /^- \[x\]/.test(checkedLine ?? ""), checkedLine);
+  // 再点恢复
+  const dbBox2 = boardEl.querySelector(".jd-db-item.done .jd-db-check") ?? dbToday.querySelector(".jd-db-check");
+  dbBox2.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 50));
+  check("再点恢复未完成", /^- \[ \]/.test(readFile("日记/每日/2026-08-11.md").split("\n").find((l) => l.includes(dbItemText)) ?? ""));
+
+  // ---------- 汇总 ----------
   // 复制真实插件模板到测试 vault → 走文件分支
   const tplDir = path.join(TEST_ROOT, ".obsidian/plugins/journal-dashboard/templates");
   fs.mkdirSync(tplDir, { recursive: true });

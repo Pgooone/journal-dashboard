@@ -307,3 +307,73 @@
   background: var(--interactive-hover);
   border-color: var(--interactive-accent);
 }
+
+/* ===== 日记内嵌看板（```journal-board 代码块） ===== */
+
+.jd-daily-board {
+  margin: 10px 0;
+}
+
+.jd-daily-board .jd-db-cols {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.jd-daily-board .jd-db-col {
+  flex: 1 1 0;
+  min-width: 130px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-top: 3px solid var(--jd-col-color, transparent);
+}
+
+.jd-daily-board .jd-db-col.jd-db-done {
+  border-top-color: var(--text-faint);
+}
+
+.jd-daily-board .jd-db-col-title {
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text-normal);
+  white-space: nowrap;
+}
+
+.jd-daily-board .jd-db-empty {
+  font-size: var(--font-smaller);
+  color: var(--text-faint);
+  padding: 2px 0;
+}
+
+.jd-daily-board .jd-db-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  font-size: var(--font-ui-small);
+  padding: 3px 4px;
+  border-radius: 5px;
+  color: var(--text-normal);
+}
+
+.jd-daily-board .jd-db-item:hover {
+  background: var(--background-modifier-hover);
+}
+
+.jd-daily-board .jd-db-item.done {
+  opacity: 0.5;
+}
+
+.jd-daily-board .jd-db-item.done {
+  text-decoration: line-through;
+}
+
+.jd-daily-board .jd-db-check {
+  flex: 0 0 auto;
+  cursor: pointer;
+  color: var(--text-muted);
+  user-select: none;
+}

@@ -67,6 +67,11 @@ export function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** 从行文本提取标签（Obsidian 标签语法，中文/字母/数字/_/-// 均可） */
+export function extractTags(text: string): string[] {
+  return text.match(/#[\p{L}\p{N}_/-]+/gu) ?? [];
+}
+
 function isFilenameMode(v: unknown): v is FilenameMode {
   return typeof v === "string" && (FILENAME_MODES as readonly string[]).includes(v);
 }

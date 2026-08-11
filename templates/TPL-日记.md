@@ -10,6 +10,8 @@ tags:
 
 << [[{{prev}}]] | [[{{next}}]] >>
 
+```journal-board
+
 ## 🎯 今日事
 - [ ] {{cursor}} #今天
 - [ ] #今天
