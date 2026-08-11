@@ -495,7 +495,15 @@ export class DashboardView extends ItemView {
     const section = this.plugin.settings.todaySection;
     await this.app.vault.process(target, (data) => {
       const lines = data.split("\n");
-      const titleIdx = lines.findIndex((l) => l.trim().startsWith(section));
+      // 优先插入到包含目标列标签的区块（如 ## ⏭ 明天）；找不到则用今日事区块
+      const tagName = column.match[0]?.replace(/^#/, "") ?? "";
+      let titleIdx = lines.findIndex((l) => l.trim().startsWith(section));
+      if (tagName) {
+        const taggedIdx = lines.findIndex(
+          (l) => /^##\s+/.test(l) && l.includes(tagName)
+        );
+        if (taggedIdx !== -1) titleIdx = taggedIdx;
+      }
       if (titleIdx === -1) {
         if (lines[lines.length - 1]?.trim() !== "") lines.push("");
         lines.push("", section, `- [ ] ${text.trim()} ${column.tag}`);

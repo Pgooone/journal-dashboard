@@ -288,10 +288,11 @@ export default class JournalDashboardPlugin extends Plugin {
     };
   }
 
-  /** 通用选项选择弹窗 */
+  /** 通用选项选择弹窗（Esc/关闭时回退默认值，命令不挂起） */
   private pickOption(title: string, options: Option[]): Promise<string> {
     return new Promise((resolve) => {
       const modal = new OptionModal(this.app, title, options, (v) => resolve(v));
+      modal.onClose = () => resolve(options[0]?.value ?? "");
       modal.open();
     });
   }

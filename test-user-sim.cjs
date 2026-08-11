@@ -146,8 +146,17 @@ class StubSettingTab { constructor(app, plugin) { this.app = app; this.plugin = 
 class StubModal {
   constructor(app) { this.app = app; this._clicks = []; }
   setTitle() {}
-  open() { setTimeout(() => this._clicks[0]?.(), 0); }
+  open() {
+    if (StubModal.cancelNext) { // 模拟用户 Esc 关闭（不选任何选项）
+      StubModal.cancelNext = false;
+      this._onClose?.();
+      return;
+    }
+    setTimeout(() => this._clicks[0]?.(), 0);
+  }
   close() {}
+  set onClose(fn) { this._onClose = fn; }
+  get onClose() { return this._onClose; }
   get contentEl() {
     const modal = this;
     return {
@@ -160,6 +169,7 @@ class StubModal {
     };
   }
 }
+StubModal.cancelNext = false;
 class StubSetting {
   constructor(containerEl) {
     this.el = document.createElement("div");
@@ -495,7 +505,7 @@ async function main() {
 
   console.log("══ 测试 9：新建日记（插件自主渲染，内嵌模板回退） ══");
   // 测试 vault 没有插件模板文件 → 走内嵌 TEMPLATES 回退
-  fs.rmSync(path.join(TEST_ROOT, "日记/每日/2026-08-11.md"), { force: true });
+  fs.unlinkSync(path.join(TEST_ROOT, "日记/每日/2026-08-11.md"));
   plugin3.executeCreateCommand("create-daily");
   await new Promise((r) => setTimeout(r, 80));
   const newDaily = readFile("日记/每日/2026-08-11.md");
@@ -612,13 +622,44 @@ async function main() {
   // 修改模板内容验证用户编辑生效
   const custom = fs.readFileSync(path.join(tplDir, "TPL-日记.md"), "utf8").replace("## 🎯 今日事", "## 🎯 今日任务（用户自定义标题）");
   fs.writeFileSync(path.join(tplDir, "TPL-日记.md"), custom);
-  fs.rmSync(path.join(TEST_ROOT, "日记/每日/2026-08-11.md"), { force: true });
+  fs.unlinkSync(path.join(TEST_ROOT, "日记/每日/2026-08-11.md"));
   plugin3.executeCreateCommand("create-daily");
   await new Promise((r) => setTimeout(r, 80));
   const customDaily = readFile("日记/每日/2026-08-11.md");
   check("用户修改的模板标题生效", customDaily.includes("## 🎯 今日任务（用户自定义标题）"));
   check("文件分支渲染正常（mood 选择）", customDaily.includes("mood: 😄"));
   check("文件分支无占位符残留", !customDaily.includes("{{"));
+
+  console.log("══ 测试 14：用户旅程（取消弹窗不挂起 + 分区添加任务） ══");
+  // 14a：心情弹窗按 Esc 取消 → 命令继续（默认心情），不卡死
+  StubModal.cancelNext = true;
+  fs.unlinkSync(path.join(TEST_ROOT, "日记/每日/2026-08-11.md"));
+  plugin3.executeCreateCommand("create-daily");
+  await new Promise((r) => setTimeout(r, 120));
+  const afterCancel = readFile("日记/每日/2026-08-11.md");
+  check("取消心情弹窗后命令继续（默认 😄，不挂起）", afterCancel.includes("mood: 😄"), afterCancel.split("\n")[6]);
+  // 14b：面板「明天」列点 + 添加任务 → 插入到「## ⏭ 明天」区块（不是今日事）
+  plugin3.refreshDashboardViews();
+  await new Promise((r) => setTimeout(r, 80));
+  const cols14 = Array.from(leafView.contentEl.querySelectorAll(".jd-col"));
+  const tmr14 = cols14.find((c) => colTitleText(c).startsWith("明天"));
+  dom.window.prompt = () => "写测试报告";
+  const addBtn14 = Array.from(tmr14.querySelectorAll("button")).find((b) => (b.textContent ?? "").includes("明天"));
+  addBtn14.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
+  await new Promise((r) => setTimeout(r, 60));
+  const f14 = readFile("日记/每日/2026-08-11.md").split("\n");
+  const task14Idx = f14.findIndex((l) => l.includes("写测试报告"));
+  const prevHead14 = f14.slice(0, task14Idx).reverse().find((l) => /^##\s/.test(l)) ?? "";
+  check("「明天」列添加的任务插入到明天区块", prevHead14.includes("明天") && !prevHead14.includes("今日事"), prevHead14);
+  check("任务带 #明天 标签", f14[task14Idx]?.includes("#明天"), f14[task14Idx]);
+  // 14c：空看板文件时的 Notice 提示（看板文件缺失场景）
+  const noticesBefore = notices.length;
+  fs.unlinkSync(path.join(TEST_ROOT, "日记/每日/任务看板.md"));
+  const openBoardBtn14 = Array.from(leafView.contentEl.querySelectorAll(".jd-board-header button")).find((b) => (b.textContent ?? "").includes("打开完整看板"));
+  openBoardBtn14.dispatchEvent(new dom.window.Event("click", { bubbles: true }));
+  check("看板文件缺失时给出 Notice 提示", notices.length > noticesBefore, JSON.stringify(notices.slice(noticesBefore)));
+  // 恢复看板文件（后续测试不再依赖）
+  fs.writeFileSync(path.join(TEST_ROOT, "日记/每日/任务看板.md"), "---\nkanban_plugin: '{\"columns\":[]}'\n---\n");
 
   // ---------- 汇总 ----------
   console.log(`\n════ 结果：${pass} 通过 / ${fail} 失败 ════`);
