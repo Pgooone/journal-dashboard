@@ -74,12 +74,12 @@ function isFilenameMode(v: unknown): v is FilenameMode {
 // ===== 默认设置（与 my-template-library 现有硬编码逐项一致） =====
 
 export const DEFAULT_SETTINGS: JournalDashboardSettings = {
-  dailyFolder: "10 Journal/Daily",
-  weeklyFolder: "10 Journal/Weekly",
-  inboxFolder: "00 Inbox",
-  boardFile: "10 Journal/Daily/Kanban-1786411859061.md",
-  templateDir: "90 Templates",
-  userScriptsFolder: "99 Meta/Scripts",
+  dailyFolder: "日记/每日",
+  weeklyFolder: "日记/每周",
+  inboxFolder: "",
+  boardFile: "日记/每日/Kanban-1786411859061.md",
+  templateDir: "日记/模板",
+  userScriptsFolder: "",
   todaySection: "## 🎯 今日事",
   columns: [
     { key: "today", label: "今天", tags: ["#今天"], color: "#FF5733" },
@@ -93,16 +93,12 @@ export const DEFAULT_SETTINGS: JournalDashboardSettings = {
   showTodayCard: true,
   showWeekCard: true,
   showRecentCard: true,
-  showInboxCard: true,
+  showInboxCard: false,
   recentCount: 7,
   inboxCount: 5,
   commands: [
-    { id: "create-daily", name: "新建日记", template: "90 Templates/TPL-日记.md", folder: "10 Journal/Daily", filenameMode: "date" },
-    { id: "create-weekly", name: "新建周记", template: "90 Templates/TPL-周记.md", folder: "10 Journal/Weekly", filenameMode: "week" },
-    { id: "create-fleeting", name: "新建速记", template: "90 Templates/TPL-速记.md", folder: "00 Inbox", filenameMode: "prompt" },
-    { id: "create-meeting", name: "新建会议", template: "90 Templates/TPL-会议.md", folder: "20 Notes/Meetings", filenameMode: "meeting-date" },
-    { id: "create-project", name: "新建项目", template: "90 Templates/TPL-项目.md", folder: "30 Projects", filenameMode: "prompt" },
-    { id: "create-book", name: "新建读书笔记", template: "90 Templates/TPL-读书.md", folder: "20 Notes", filenameMode: "prompt" },
+    { id: "create-daily", name: "新建日记", template: "日记/模板/TPL-日记.md", folder: "日记/每日", filenameMode: "date" },
+    { id: "create-weekly", name: "新建周记", template: "日记/模板/TPL-周记.md", folder: "日记/每周", filenameMode: "week" },
   ],
   autoSetup: true,
   forceOverwrite: false,
@@ -206,7 +202,7 @@ export class JournalDashboardSettingTab extends PluginSettingTab {
       { key: "inboxFolder", name: "收件箱文件夹", desc: "收件箱速记卡片的扫描目录" },
       { key: "boardFile", name: "看板文件", desc: "「打开完整看板」跳转的 task-list-kanban 看板文件路径" },
       { key: "templateDir", name: "模板目录", desc: "模板安装目标，也用于 Templater 配置" },
-      { key: "userScriptsFolder", name: "脚本文件夹", desc: "Templater user_scripts_folder" },
+      { key: "userScriptsFolder", name: "脚本文件夹", desc: "Templater user_scripts_folder（留空则不配置脚本目录）" },
       { key: "todaySection", name: "今日事标题", desc: "新增任务追加到该标题区块下（写回定位用）" },
     ];
     for (const p of paths) {
