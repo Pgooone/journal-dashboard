@@ -224,9 +224,9 @@ async function moveTaskToSection(
       }
     }
     if (titleIdx === -1) {
-      // 无目标区块：回退为标签替换（任务仍按标签归列）
-      const tag = plugin.settings.columns.find((c) => c.tags[0]?.replace(/^#/, "") === tagName)?.tags[0] ?? `#${tagName}`;
-      lines[line] = replaceColumnTag(lines[line], plugin.settings.columns, tag);
+      // 无目标区块：只清除列标签，不追加任何 #xx（保持行干净；
+      // 区块完整时不会走到此分支）
+      lines[line] = replaceColumnTag(lines[line], plugin.settings.columns, "");
       return lines.join("\n");
     }
 
